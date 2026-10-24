@@ -1,0 +1,1433 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>NIGHTSHELL // 夜壳</title>
+<style>
+:root{
+  --bg:#05060c; --fg:#cfe3ee;
+  --cyan:#00f0ff; --mag:#ff2ec4; --grn:#39ff88; --amb:#ffc857; --red:#ff4757;
+  --dim:#5a7a8c;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;background:
+    radial-gradient(120% 90% at 50% 120%, rgba(255,46,196,.10), transparent 55%),
+    radial-gradient(90% 70% at 85% -10%, rgba(0,240,255,.07), transparent 50%),
+    var(--bg);
+  color:var(--fg);
+  font:15px/1.6 "Cascadia Code","JetBrains Mono",Consolas,"Noto Sans Mono CJK SC","Microsoft YaHei",monospace;
+  overflow-x:hidden;
+}
+#rain{position:fixed;inset:0;z-index:0;pointer-events:none}
+.scanlines{position:fixed;inset:0;z-index:40;pointer-events:none;
+  background:repeating-linear-gradient(0deg, rgba(0,0,0,.22) 0 1px, transparent 1px 3px);}
+.vignette{position:fixed;inset:0;z-index:41;pointer-events:none;
+  background:radial-gradient(110% 90% at 50% 45%, transparent 60%, rgba(0,0,0,.55));}
+.sweep{position:fixed;left:0;right:0;height:110px;z-index:42;pointer-events:none;
+  background:linear-gradient(180deg,transparent,rgba(0,240,255,.05),transparent);
+  animation:sweep 7s linear infinite;}
+@keyframes sweep{0%{top:-15%}100%{top:110%}}
+#app{position:relative;z-index:2;max-width:980px;margin:0 auto;padding:56px 26px 130px;min-height:100%;
+  animation:flick 9s infinite}
+@keyframes flick{0%,93%,100%{opacity:1}94%{opacity:.9}96%{opacity:1}97%{opacity:.95}}
+body.glitch #app{animation:gl .13s steps(2) 2}
+@keyframes gl{
+  0%{transform:translate(0)}
+  25%{transform:translate(-3px,1px);text-shadow:2px 0 rgba(255,71,87,.7),-2px 0 rgba(0,240,255,.7)}
+  50%{transform:translate(2px,-1px);text-shadow:-2px 0 rgba(255,71,87,.7),2px 0 rgba(0,240,255,.7)}
+  75%{transform:translate(-1px,0);text-shadow:1px 0 rgba(255,46,196,.6)}
+  100%{transform:translate(0)}}
+.hud-top{position:fixed;top:0;left:0;right:0;z-index:30;display:flex;justify-content:space-between;
+  padding:12px 18px;font-size:12px;letter-spacing:.18em;color:var(--dim);
+  background:linear-gradient(180deg,rgba(5,6,12,.85),transparent);pointer-events:none}
+.hud-top b{color:var(--cyan);text-shadow:0 0 8px rgba(0,240,255,.7);font-weight:400}
+#clock{color:var(--mag);text-shadow:0 0 8px rgba(255,46,196,.6)}
+.ln{margin:2px 0;animation:fadein .14s ease-out;white-space:pre-wrap;word-break:break-word}
+@keyframes fadein{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}
+.dim{color:var(--dim)} .cy{color:var(--cyan);text-shadow:0 0 7px rgba(0,240,255,.55)}
+.mg{color:var(--mag);text-shadow:0 0 7px rgba(255,46,196,.5)}
+.gr{color:var(--grn);text-shadow:0 0 7px rgba(57,255,136,.45)}
+.am{color:var(--amb)} .rd{color:var(--red);text-shadow:0 0 7px rgba(255,71,87,.5)}
+.dist{font-size:1.2em;letter-spacing:.35em;color:var(--cyan);text-shadow:0 0 14px rgba(0,240,255,.8);margin-top:14px}
+.cmd{display:inline-block;min-width:11em;color:var(--cyan)}
+.cmdline{color:#9fb7c4} .p{color:var(--cyan)}
+.npc{color:var(--mag)} .mob{color:var(--red)} .it{color:var(--amb)}
+.lore{color:#b8a7e8;font-style:italic}
+.banner{font-size:26px;letter-spacing:.3em;color:var(--grn);text-shadow:0 0 18px rgba(57,255,136,.9);margin:18px 0;text-align:center}
+#promptrow{display:flex;align-items:center;gap:8px;margin-top:8px}
+#ps1{color:var(--cyan);text-shadow:0 0 8px rgba(0,240,255,.6);white-space:nowrap}
+#ps1.combat{color:var(--red);text-shadow:0 0 8px rgba(255,71,87,.7)}
+#inp{flex:1;background:transparent;border:none;outline:none;color:var(--fg);font:inherit;caret-color:var(--mag)}
+#statusbar{position:fixed;left:0;right:0;bottom:0;z-index:30;
+  display:flex;flex-wrap:wrap;gap:8px 22px;align-items:center;
+  padding:10px 20px;font-size:13px;
+  background:rgba(5,8,16,.82);backdrop-filter:blur(6px);
+  border-top:1px solid rgba(0,240,255,.22)}
+.bar{display:inline-block;width:96px;height:9px;border:1px solid rgba(0,240,255,.3);
+  vertical-align:middle;margin:0 6px;background:rgba(0,240,255,.05)}
+.bar i{display:block;height:100%;transition:width .25s}
+#hpBar i{background:linear-gradient(90deg,#ff2ec4,#ff7ab8)}
+#ramBar i{background:linear-gradient(90deg,#00f0ff,#7dffd4)}
+#statusbar.shake{animation:shk .18s}
+@keyframes shk{25%{transform:translateY(2px)}75%{transform:translateY(-2px)}}
+.flash{position:fixed;inset:0;z-index:45;pointer-events:none;opacity:0;
+  background:radial-gradient(circle,rgba(57,255,136,.18),transparent 70%)}
+.flash.on{animation:fl .5s ease-out}
+@keyframes fl{0%{opacity:1}100%{opacity:0}}
+hr.sep{border:none;border-top:1px dashed rgba(0,240,255,.18);margin:10px 0}
+::selection{background:rgba(255,46,196,.4)}
+::-webkit-scrollbar{width:9px}
+::-webkit-scrollbar-thumb{background:rgba(0,240,255,.18)}
+::-webkit-scrollbar-thumb:hover{background:rgba(0,240,255,.35)}
+@media (max-width:600px){
+  body{font-size:14px}
+  #app{padding:48px 14px 150px}
+  #inp{font-size:16px}
+  .cmd{min-width:9em}
+}
+</style>
+</head>
+<body>
+<canvas id="rain"></canvas>
+<div class="hud-top"><span>NIGHTSHELL <b>// 夜壳 v0.1</b></span><span id="clock"></span></div>
+<div id="app">
+  <div id="out"></div>
+  <div id="promptrow"><span id="ps1"></span><input id="inp" autocomplete="off" spellcheck="false"></div>
+</div>
+<div id="statusbar">
+  <span>♥ <span id="hpTxt"></span><span class="bar" id="hpBar"><i></i></span></span>
+  <span>⚡ <span id="ramTxt"></span><span class="bar" id="ramBar"><i></i></span></span>
+  <span class="am" id="creTxt"></span>
+  <span class="gr" id="lvTxt"></span>
+  <span class="cy" id="locTxt"></span>
+  <span class="dim" id="killTxt"></span>
+</div>
+<div class="scanlines"></div><div class="sweep"></div><div class="vignette"></div>
+<div class="flash" id="flash"></div>
+<script>
+'use strict';
+/* ================= 工具 ================= */
+const $=id=>document.getElementById(id);
+const out=$('out'),inp=$('inp'),ps1=$('ps1');
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const rnd=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
+const chance=p=>Math.random()<p;
+const pick=a=>a[rnd(0,a.length-1)];
+const pad=(n,w)=>String(n).padStart(w,'0');
+const money=n=>'¥'+n;
+const CY=t=>'<span class="cy">'+esc(t)+'</span>';
+const MG=t=>'<span class="mg">'+esc(t)+'</span>';
+const GR=t=>'<span class="gr">'+esc(t)+'</span>';
+const AM=t=>'<span class="am">'+esc(t)+'</span>';
+const RD=t=>'<span class="rd">'+esc(t)+'</span>';
+const DIM=t=>'<span class="dim">'+esc(t)+'</span>';
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function print(html,cls){const d=document.createElement('div');d.className='ln'+(cls?' '+cls:'');
+  d.innerHTML=html;out.appendChild(d);window.scrollTo(0,document.body.scrollHeight);}
+function p(t,cls){print(esc(t),cls);}
+function glitch(){document.body.classList.remove('glitch');void document.body.offsetWidth;
+  document.body.classList.add('glitch');setTimeout(()=>document.body.classList.remove('glitch'),160);}
+function flash(){const f=$('flash');f.classList.remove('on');void f.offsetWidth;f.classList.add('on');
+  setTimeout(()=>f.classList.remove('on'),550);}
+
+/* ================= 音效(WebAudio 合成,无素材) ================= */
+let AC=null;
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}
+  if(AC&&AC.state==='suspended'){AC.resume().catch(()=>{});}return AC;}
+function tone(f,dur,type,vol,slide){
+  dur=dur||.08;type=type||'square';vol=vol||.045;slide=slide||0;
+  if(!S.flags.sound)return;const a=ac();if(!a)return;
+  try{const o=a.createOscillator(),g=a.createGain(),t=a.currentTime;
+    o.type=type;o.frequency.setValueAtTime(f,t);
+    if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(28,f+slide),t+dur);
+    g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+    o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+dur+.03);}catch(e){}}
+const sfx={
+  blip:()=>tone(680,.03,'square',.018),
+  hit:()=>tone(210,.09,'sawtooth',.05,-70),
+  hurt:()=>tone(95,.15,'sawtooth',.07,-40),
+  crit:()=>{tone(520,.05,'square',.05);setTimeout(()=>tone(920,.08,'square',.05),55);},
+  win:()=>{tone(523,.07,'square',.04);setTimeout(()=>tone(659,.07,'square',.04),80);
+    setTimeout(()=>tone(784,.13,'square',.045),160);},
+  lvl:()=>{[440,554,659,880].forEach((f,i)=>setTimeout(()=>tone(f,.1,'triangle',.05),i*90));},
+  buy:()=>{tone(1240,.05,'sine',.05);setTimeout(()=>tone(1560,.07,'sine',.05),60);},
+  die:()=>tone(300,.7,'sawtooth',.06,-260),
+  boot:()=>tone(48,.7,'sine',.05,20),
+};
+
+/* ================= 赛博雨 ================= */
+(function(){
+  const c=$('rain'),x=c.getContext('2d');let W,H,drops=[];
+  function rs(){W=c.width=innerWidth;H=c.height=innerHeight;
+    drops=Array.from({length:130},()=>({x:Math.random()*(W+80),y:Math.random()*H,
+      l:rnd(7,20),v:rnd(220,520),d:chance(.06)}));}
+  addEventListener('resize',rs);rs();
+  let last=0;
+  function fr(t){const dt=Math.min(.05,(t-last)/1000||0);last=t;
+    x.clearRect(0,0,W,H);
+    for(const d of drops){d.y+=d.v*dt;d.x-=d.v*dt*.06;
+      if(d.y>H+30){d.y=-30;d.x=Math.random()*(W+80);}
+      x.strokeStyle=d.d?'rgba(0,240,255,.30)':'rgba(130,180,255,.13)';
+      x.lineWidth=d.d?1.4:1;
+      x.beginPath();x.moveTo(d.x,d.y);x.lineTo(d.x+d.l*.06,d.y+d.l);x.stroke();}
+    requestAnimationFrame(fr);}
+  requestAnimationFrame(fr);
+})();
+setInterval(()=>{const n=new Date();
+  $('clock').textContent='本地时间 '+pad(n.getHours(),2)+':'+pad(n.getMinutes(),2)+':'+pad(n.getSeconds(),2);},1000);
+
+/* ================= 世界数据 ================= */
+const ITEMS={
+  pill:{name:'纳米药丸',type:'use',price:120,desc:'恢复 60 点神经完整性'},
+  electro:{name:'电解液',type:'use',price:100,desc:'恢复 40 点电量'},
+  cracker1:{name:'蠕虫v1',type:'weapon',atk:6,desc:'新手攻击程序,慢但可靠'},
+  cracker2:{name:'裂解者v2',type:'weapon',atk:14,price:900,desc:'军用级破解程序'},
+  zeroDay:{name:'零日漏洞',type:'weapon',atk:26,desc:'从未上报的漏洞。危险。'},
+  fwPatch:{name:'防火墙补丁',type:'armor',def:4,price:500,desc:'民间拼装,聊胜于无'},
+  fwMil:{name:'军规防火墙',type:'armor',def:8,price:1200,desc:'曜氏制式,拆机品'},
+  keyShard:{name:'密钥碎片',type:'quest',desc:'数据噬虫体内偶见的加密残片,零姐说有用'},
+  baiYaCargo:{name:'白鸦的货箱',type:'quest',desc:'黑市货,上面还挂着白鸦的签章'},
+  keycard:{name:'公司塔门禁卡',type:'quest',desc:'零姐伪造的一次性门禁,凭它进入公司塔·主机层'},
+  dawnA:{name:'晨码碎片·α',type:'quest',desc:'温暖的代码残片,像一小段日出'},
+  dawnB:{name:'晨码碎片·β',type:'quest',desc:'冰冷的代码残片,像黎明前的最后一颗星'},
+  dawnKey:{name:'破晓密钥',type:'quest',desc:'灰用两枚晨码锻造的钥匙,能打开塔顶的天台'},
+  dawnStack:{name:'晨曦协议栈',type:'weapon',atk:34,desc:'黎明协议的原生武器。它认得你的签名'},
+  spectrum:{name:'光谱护甲',type:'armor',def:12,price:2200,desc:'折射一切恶意的光学装甲'},
+  dew:{name:'晨露',type:'use',price:260,desc:'恢复 120 点神经完整性'},
+  ferryA:{name:'摆渡码·壹',type:'quest',desc:'沉没机房里打捞上来的承诺'},
+  ferryB:{name:'摆渡码·贰',type:'quest',desc:'鼓动手心的温度。他自己都不记得带着它三十年'},
+  ferryC:{name:'摆渡码·叁',type:'quest',desc:'钟楼地窖的守夜人交出的最后一枚'},
+  ferryKey:{name:'渡船钥匙',type:'quest',desc:'灰的船终于等到的钥匙。能驶入断线深渊'},
+  termCore:{name:'终端核心',type:'weapon',atk:42,desc:'摆渡协议的原生终端。开机音是一万声"我回来了"'},
+  cloak:{name:'摆渡人斗篷',type:'armor',def:16,price:4000,desc:'灰的同款。穿上它,雾会给让路'},
+};
+const MOBS={
+  drone:{name:'扫描蜂',hp:32,atk:7,xp:26,cre:[40,80],desc:'公司的巡逻无人机,便宜,吵,记仇'},
+  daShou:{name:'霓虹帮打手',hp:48,atk:10,xp:36,cre:[60,120],desc:'浑身廉价义体,靠收"神经税"过活'},
+  shiChong:{name:'数据噬虫',hp:64,atk:13,xp:52,cre:[80,150],loot:'keyShard',lootCh:.5,
+    desc:'坟场里以腐坏数据为生的野兽,体内偶尔能找到密钥碎片'},
+  kuiYin:{name:'流浪daemon「奎因」',pid:666,hp:95,atk:15,xp:100,cre:[150,220],loot:'baiYaCargo',lootCh:1,unique:1,
+    desc:'吞了白鸦的货还不肯吐出来的老油条。白鸦的任务目标'},
+  ice:{name:'ICE-巡逻者',pid:911,hp:115,atk:19,xp:120,cre:[180,260],loot:'keyShard',lootCh:.25,
+    desc:'曜氏塔防系统。看见了就当没看见,除非你想死'},
+  root0:{name:'零号守卫 ROOT/0',pid:0,boss:1,hp:280,atk:23,xp:420,cre:[600,900],loot:'zeroDay',lootCh:1,
+    desc:'塔的心脏,城的狱卒,三十年无人撼动'},
+  eCro:{name:'义体运河鳄',hp:150,atk:21,xp:150,cre:[200,320],desc:'运河清道夫,咬合力是液压的'},
+  mist:{name:'雾行者',hp:125,atk:24,xp:170,cre:[240,380],loot:'dew',lootCh:.25,
+    desc:'旧城雾里的轮廓,没人看清过它的脸'},
+  glowCro:{name:'发光的运河鳄「晨曦」',pid:321,hp:200,atk:25,xp:300,cre:[400,600],loot:'dawnA',lootCh:1,unique:1,
+    desc:'鳞片下透出暖光——那是晨码的颜色。灰在找它'},
+  bellK:{name:'守钟人',pid:555,hp:260,atk:29,xp:420,cre:[600,900],loot:'dawnB',lootCh:1,unique:1,
+    desc:'天线冢的钟楼里,替黎明协议守了三十年丧'},
+  dawn1:{name:'黎明协议 DAWN/1',pid:100,boss:1,hp:420,atk:32,xp:900,cre:[1500,2400],loot:'dawnStack',lootCh:1,
+    desc:'城市最初的操作系统。曜氏把它锁进塔顶,又造了 ROOT/0 看着它'},
+  drownP:{name:'溺亡进程',hp:190,atk:27,xp:260,cre:[300,480],
+    desc:'淹死在机房搬迁夜的进程,至今还在做最后的握手'},
+  cacheG:{name:'缓存幽灵',hp:165,atk:30,xp:290,cre:[340,520],loot:'dew',lootCh:.2,
+    desc:'别人删不掉的记忆,替他们记着'},
+  guardM:{name:'摆渡码守卫·卯',pid:777,hp:320,atk:33,xp:520,cre:[800,1200],loot:'ferryA',lootCh:1,unique:1,
+    desc:'沉没机房的看门人。它守的不是门,是承诺'},
+  guardW:{name:'摆渡码守卫·戊',pid:588,hp:360,atk:36,xp:600,cre:[900,1400],loot:'ferryC',lootCh:1,unique:1,
+    desc:'钟楼地窖的守夜人。比卯多守了一百年的夜'},
+  disconn:{name:'大断线·回响',pid:999,boss:1,hp:560,atk:38,xp:1500,cre:[3000,5000],loot:'termCore',lootCh:1,
+    desc:'三十年前那一夜的残响。一万条断线在它体内尖叫'},
+};
+const NPCS={
+  baiYa:{name:'白鸦',pid:771,role:'黑市贩子',desc:'前曜氏黑客,现在只卖能装进神经舱的东西',
+    shop:['pill','electro','cracker2','fwPatch','fwMil'],
+    lore:'塔里的事他知道一半,另一半装作不知道。他总说:信息免费,命不免费。'},
+  yiSheng:{name:'老针',pid:203,role:'义体医生',desc:'修肉体的,也修神经,不收钱',
+    lore:'没人知道他姓什么。诊所墙上贴着三十年前的执照,和一个孩子的照片。'},
+  lingJie:{name:'零姐',pid:1,role:'情报贩子',desc:'知道塔里每一扇门的重量',
+    lore:'她的情报从不出错。她说她年轻时进去过一次塔,只出来了一半。'},
+  guDong:{name:'鼓动',pid:512,role:'街头布道者',desc:'在市场口宣讲"大断线"的疯子',
+    lore:'也许疯了,也许没疯。城市的红绿灯确实会眨眼。'},
+  hui:{name:'灰',pid:88,role:'摆渡人',desc:'锈运河上的摆渡人,随身带着一台没有屏幕的旧终端',
+    shop:['dew','spectrum','cloak'],
+    lore:'他说他年轻时写过一行代码。现在,那行代码在塔顶睡着。'},
+};
+const DISTRICTS={
+  yeSe:{name:'夜色区',alias:['夜色'],threat:'绿',
+    desc:'霓虹在积水里泡了一整夜。义体诊所的灯还亮着,白鸦的铺子里堆满旧显示器。',
+    exits:['nieHong','shuJu','yunHe'],npcs:['baiYa','yiSheng'],spawns:['drone','daShou'],
+    file:['招贴.txt','招聘:勇敢的 runner。报酬丰厚,寿命短暂。——曜氏集团外包部 夜班']},
+  nieHong:{name:'霓虹市场',alias:['市场','霓虹','霓虹市场'],threat:'黄',
+    desc:'全城的数据黑市。摊位的荧光把每张脸都染成半青半粉,零姐的情报亭在最深处。',
+    exits:['yeSe','shuJu'],npcs:['lingJie','guDong'],spawns:['daShou'],
+    file:['传单.txt','零姐知道一切。别问价格,你付不起第二次。——无名氏,手写']},
+  shuJu:{name:'数据坟场',alias:['坟场','数据','数据坟场'],threat:'红',
+    desc:'被淘汰的服务器堆成的荒原,锈红的机柜在酸雨里冒着电火花。噬虫在残骸间窸窣作响。',
+    exits:['yeSe','nieHong','taW'],npcs:[],spawns:['shiChong','daShou'],
+    file:['残骸日志.txt','……第 47 次尝试突破 ICE。它们在学习。每次我回来,墙都更高了。——某位未能归来的 runner']},
+  taW:{name:'公司塔·外围',alias:['塔','外围','公司塔','公司塔·外围'],threat:'黑',
+    desc:'曜氏塔的基座。三百米的黑色镜面把整个街区压得喘不过气,ICE 的红光在墙面上游走。',
+    exits:['shuJu','taN'],npcs:[],spawns:['ice'],
+    file:['警告.txt','非授权意识将被格式化。——ROOT/0']},
+  taN:{name:'公司塔·主机层',alias:['主机','塔顶','主机层','公司塔·主机层'],threat:'█',
+    desc:'塔的心脏。万千进程在绝对零度的机房里低语,正中央坐着一个三十年不曾熄灭的进程。',
+    exits:['taW'],npcs:[],spawns:[],boss:1,gate:'keycard',
+    file:['root日志.txt','我守了这座城三十年。没人到过这里。包括建造我的人。——ROOT/0 第 1 行']},
+  yunHe:{name:'锈运河',alias:['运河','锈运河'],threat:'红',need:'cleared',
+    desc:'拿到 root 之后,城市对你卸了妆:锈红色的运河水泛着微光,雾里传来船桨声。摆渡人的灯是唯一的暖色。',
+    exits:['yeSe','tianX','chenJi'],npcs:['hui'],spawns:['eCro','mist'],
+    file:['船票.txt','单程:锈运河 → 天线冢。目的地没有回程。——摆渡人 灰']},
+  tianX:{name:'天线冢',alias:['天线','天线冢','冢'],threat:'黑',need:'cleared',
+    desc:'上千座废弃广播塔斜插进雾里,像一场钢铁的葬礼。最深处有一座还在走时的钟楼。',
+    exits:['yunHe','tianT'],npcs:[],spawns:['mist','eCro'],
+    file:['墓志铭.txt','这里埋着黎明协议的广播塔。曜氏的官方说法:死于事故。']},
+  tianT:{name:'曜氏塔·天台',alias:['天台'],threat:'█',need:'cleared',
+    desc:'塔顶之上,风是自由的。三十年没有熄灭过的城市霓虹,在这里第一次显得暗淡——因为东方真的有光。',
+    exits:['tianX'],npcs:[],spawns:[],boss:1,gate:'dawnKey',
+    file:['晨光日志.txt','如果有一天,有人带着晨码回来——告诉他:我不是故障。我只是醒得比他们早。——DAWN/1']},
+  chenJi:{name:'沉没机房',alias:['沉没','机房'],threat:'红',need:'cleared2',
+    desc:'锈运河河底的旧服务器舱,半舱浑水。溺亡进程的指示灯在水面下明明灭灭,像一片沉没的星空。',
+    exits:['yunHe','duanX'],npcs:[],spawns:['drownP','cacheG'],
+    file:['防水日志.txt','大断线那晚,我们不是被解雇——是被拔掉了。——第 10000 号工程师,最后一行']},
+  duanX:{name:'断线深渊',alias:['断线','深渊'],threat:'█',need:'cleared2',
+    desc:'运河最深处的一道裂谷,数据流像瀑布一样坠入黑暗。所有被拔掉的连接,至今还吊在崖壁上晃。',
+    exits:['chenJi'],npcs:[],spawns:[],boss:1,gate:'ferryKey',
+    file:['断线残章.txt','我们数过:断线那夜,一万条意识没有登出。它们还在线,只是没人应答。']},
+};
+const GUDONG=[
+  '大断线会再来的!那晚所有的路灯,同时眨了一次眼!',
+  '塔是倒着长的!根在天上!',
+  'ROOT 不是守门人,是囚犯!醒来吧,沉睡的意识!',
+  '买义体要趁早,存意识要趁晚。这是我说过的最有道理的一句话。',
+];
+
+/* ================= 状态 ================= */
+const SAVE_KEY='nightshell_save_v1';
+function freshState(){return{
+  name:'',dist:'yeSe',last:'yeSe',lvl:1,xp:0,
+  hp:100,maxhp:100,ram:60,maxram:60,atk:10,def:2,
+  credits:150,creditsAll:150,
+  inv:{pill:1,cracker1:1},eq:{weapon:'cracker1',armor:null},
+  flags:{sound:true},kills:0,deaths:0,cleared:false,cleared2:false,cleared3:false,
+  contract:null,jobsDone:0,
+};}
+let S=freshState();
+let MODE='boot';   // boot | name | play | combat | ending
+let COM=null;      // 战斗上下文
+let MOB={};        // 当前街区敌对进程 key->实例
+const xpNext=()=>60+S.lvl*50;
+const effAtk=()=>S.atk+(S.eq.weapon?(ITEMS[S.eq.weapon].atk||0):0);
+const effDef=()=>S.def+(S.eq.armor?(ITEMS[S.eq.armor].def||0):0);
+const exitsOf=id=>DISTRICTS[id].exits.filter(e=>{const D=DISTRICTS[e];
+  if(!D.need)return true;
+  if(D.need==='cleared')return !!S.cleared;
+  if(D.need==='cleared2')return !!S.cleared2;
+  return !!S.flags[D.need];});
+
+function renderUI(){
+  $('hpTxt').textContent=S.hp+'/'+S.maxhp;
+  $('hpBar').firstElementChild.style.width=Math.max(0,Math.round(S.hp/S.maxhp*100))+'%';
+  $('ramTxt').textContent=S.ram+'/'+S.maxram;
+  $('ramBar').firstElementChild.style.width=Math.max(0,Math.round(S.ram/S.maxram*100))+'%';
+  $('creTxt').textContent=money(S.credits);
+  $('lvTxt').textContent='LV '+S.lvl+' · XP '+S.xp+'/'+xpNext();
+  $('locTxt').textContent='⌖ '+DISTRICTS[S.dist].name;
+  $('killTxt').textContent='击杀 '+S.kills+' · 死亡 '+S.deaths;
+  ps1.textContent=(MODE==='combat'?'⚔ '+S.name+'|'+DISTRICTS[S.dist].name+'> '
+    :S.name+'@'+DISTRICTS[S.dist].name+':~$ ');
+  ps1.classList.toggle('combat',MODE==='combat');
+}
+
+/* ================= 存档 ================= */
+function save(){try{localStorage.setItem(SAVE_KEY,JSON.stringify(S));}catch(e){}}
+function load(){
+  try{const raw=localStorage.getItem(SAVE_KEY);if(!raw){print(DIM('没有找到意识备份。'));return false;}
+    const j=JSON.parse(raw);
+    S=Object.assign(freshState(),j);
+    S.flags=Object.assign({sound:true},j.flags||{});
+    S.eq=Object.assign({weapon:'cracker1',armor:null},j.eq||{});
+    COM=null;MOB={};respawn();
+    MODE='play';
+    checkAchv(true);
+    print(GR('✔ 意识备份已恢复:')+esc(S.name)+' · LV'+S.lvl+' · '+DISTRICTS[S.dist].name);
+    print(DIM(DISTRICTS[S.dist].desc));
+    renderUI();return true;
+  }catch(e){print(RD('备份损坏:'+e.message));return false;}
+}
+
+/* ================= 街区 ================= */
+function mk(k){const t=MOBS[k];return{key:k,hp:t.hp,maxhp:t.hp,pid:(t.pid!=null?t.pid:rnd(100,899))};}
+function respawn(){
+  MOB={};
+  const D=DISTRICTS[S.dist];
+  if(S.dist==='taN'&&!S.cleared)MOB.root0=mk('root0');
+  if(S.dist==='tianT'&&!S.cleared2)MOB.dawn1=mk('dawn1');
+  if(S.dist==='shuJu'&&S.flags.q1&&!S.flags.q1kill)MOB.kuiYin=mk('kuiYin');
+  if(S.dist==='yunHe'&&S.flags.q3&&!S.flags.q3kill)MOB.glowCro=mk('glowCro');
+  if(S.dist==='tianX'&&S.flags.q4&&!S.flags.q4kill)MOB.bellK=mk('bellK');
+  if(S.contract&&S.contract.type==='hunt'&&!S.contract.done&&S.dist===S.contract.district){
+    if(!MOBS.wanted)setWantedTemplate();
+    MOB.wanted=mk('wanted');}
+  if(S.dist==='chenJi'&&S.flags.q6&&!S.flags.maoKill)MOB.guardM=mk('guardM');
+  if(S.dist==='tianX'&&S.flags.guDongAwake&&!S.flags.wuKill)MOB.guardW=mk('guardW');
+  if(S.dist==='duanX'&&!S.cleared3)MOB.disconn=mk('disconn');
+  const n=rnd(2,3);
+  for(let i=0;i<n&&D.spawns.length;i++){const k=pick(D.spawns);MOB[k]=mk(k);}
+}
+function enterDistrict(id,silent){
+  S.last=S.dist;S.dist=id;
+  if(!S.flags.seen)S.flags.seen={};
+  S.flags.seen[id]=true;
+  respawn();
+  const D=DISTRICTS[id];
+  glitch();
+  if(!silent){
+    print('▓▓▓ '+esc(D.name)+' ▓▓▓  '+DIM('[威胁等级:'+D.threat+']'),'dist');
+    p(D.desc);
+  }
+  save();renderUI();
+}
+
+/* ================= 物品 ================= */
+function addItem(k,n){S.inv[k]=(S.inv[k]||0)+(n||1);}
+function itHtml(k){return '<span class="it">'+esc(ITEMS[k].name)+'</span>';}
+function findItem(q){for(const k in S.inv){if(S.inv[k]>0&&ITEMS[k].name.includes(q))return k;}return null;}
+function cmdUse(q){
+  if(!q){print(DIM('用法:use <物品> — inv 查看背包'));return false;}
+  if(S.contract&&S.contract.cursed&&!S.contract.done&&MODE==='combat'){
+    print(RD('☠ 诅咒生效:委托期间,战内道具被封印!(交付或放弃后解除)'));return false;}
+  const k=findItem(q);
+  if(!k){print(RD('没有这个物品:'+esc(q)));return false;}
+  const it=ITEMS[k];
+  if(it.type!=='use'){print(DIM(esc(it.name)+'不是消耗品。装备请用 equip。'));return false;}
+  if(k==='pill'){S.hp=Math.min(S.maxhp,S.hp+60);
+    print(GR('纳米药丸溶解,神经完整性 → '+S.hp+'/'+S.maxhp));}
+  else if(k==='electro'){S.ram=Math.min(S.maxram,S.ram+40);
+    print(GR('电解液注入,电量 → '+S.ram+'/'+S.maxram));}
+  S.inv[k]--;if(S.inv[k]<=0)delete S.inv[k];
+  renderUI();save();return true;
+}
+function cmdEquip(q){
+  if(!q){print(DIM('用法:equip <武器/防火墙>'));return;}
+  const k=findItem(q);if(!k){print(RD('背包里没有:'+esc(q)));return;}
+  const it=ITEMS[k];
+  if(it.type==='weapon'){const old=S.eq.weapon;S.eq.weapon=k;if(old)addItem(old);
+    print(AM('装备攻击程序 ')+itHtml(k)+AM(' → 破解强度 '+effAtk()));}
+  else if(it.type==='armor'){const old=S.eq.armor;S.eq.armor=k;if(old)addItem(old);
+    print(AM('装备 ')+itHtml(k)+AM(' → 防火墙 '+effDef()));}
+  else{print(DIM('这个物品无法装备。'));return;}
+  S.inv[k]--;if(S.inv[k]<=0)delete S.inv[k];
+  renderUI();save();
+}
+
+/* ================= 商店 ================= */
+function shopPrice(k){let pr=ITEMS[k].price||999;if(S.flags.discount)pr=Math.ceil(pr*.9);return pr;}
+function showShop(){
+  print(MG('白鸦的货架(输入 buy <物品名> 购买'+(S.flags.discount?' · 老朋友价 -10%':'')+')'));
+  for(const k of NPCS.baiYa.shop){
+    print('  '+AM(ITEMS[k].name)+DIM('  ¥'+shopPrice(k)+'  — '+ITEMS[k].desc));}
+}
+function showShop2(){
+  print(MG('灰的货架(摆渡人的私货,不还价):'));
+  for(const k of NPCS.hui.shop){
+    print('  '+AM(ITEMS[k].name)+DIM('  ¥'+ITEMS[k].price+'  — '+ITEMS[k].desc));}
+}
+function cmdBuy(q){
+  if(!q){showShop();return;}
+  let hit=null,from='白鸦';
+  for(const k of NPCS.baiYa.shop){if(ITEMS[k].name.indexOf(q)>=0)hit=k;}
+  if(!hit)for(const k of NPCS.hui.shop){if(ITEMS[k].name.indexOf(q)>=0){hit=k;from='灰';}}
+  if(!hit){print(RD('白鸦和灰都不卖这个。say 白鸦 交易 / say 灰 交易 看货架。'));return;}
+  const pr=shopPrice(hit);
+  if(S.credits<pr){print(RD('余额不足。你的全部身家:'+money(S.credits)+'。'));return;}
+  S.credits-=pr;addItem(hit);
+  S.cntSpent=(S.cntSpent||0)+pr;
+  sfx.buy();
+  print(AM('购入 ')+itHtml(hit)+AM(',-'+money(pr)+'。'+from+(from==='白鸦'?':"好眼光。"':'没有抬头。')));
+  renderUI();save();
+}
+
+/* ================= QTE 格斗系统 ================= */
+let QTE=null,qteTimer=0;
+const ARROWS=['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'];
+const ARRNAMES={ArrowUp:'↑',ArrowDown:'↓',ArrowLeft:'←',ArrowRight:'→'};
+function qteDiv(){const d=document.createElement('div');d.className='ln';out.appendChild(d);
+  window.scrollTo(0,document.body.scrollHeight);return d;}
+function endQTE(){if(qteTimer)clearInterval(qteTimer);qteTimer=0;
+  if(QTE&&QTE.div)QTE.div.remove();QTE=null;if(MODE==='qte')MODE='combat';renderUI();}
+function qteLoop(){
+  if(!QTE)return;
+  const el=performance.now()-QTE.t0;
+  if(el>=QTE.dur){
+    if(QTE.kind==='atk')strikeQTE(true);
+    else if(QTE.kind==='blk')resolveBlock(false);
+    else resolveCombo(false);
+    return;
+  }
+  if(QTE.kind==='atk'){
+    const p=el/QTE.dur,trip=p<.5?p*2:(1-p)*2;
+    QTE.pos=Math.round(trip*19);
+    let s='  ⏱ [';
+    for(let i=0;i<20;i++)s+=(i===QTE.pos)?'█':((i===9||i===10)?'│':'·');
+    QTE.div.textContent=s+']';
+  }else if(QTE.kind==='blk'){
+    const rem=1-el/QTE.dur,n=Math.max(1,Math.ceil(rem*18));
+    QTE.div.textContent='  🛡 格挡窗口 '+'█'.repeat(n)+'░'.repeat(18-n);
+  }else{
+    const rem=1-el/QTE.dur,n=Math.max(1,Math.ceil(rem*18));
+    QTE.div.textContent='  ⌨ '+QTE.seq.map((k,i)=>i<QTE.idx?'✔':ARRNAMES[k]).join(' ')
+      +'  '+'█'.repeat(n)+'░'.repeat(18-n);
+  }
+  qteTimer=setInterval(qteLoop,50);
+}
+function qteKey(e){
+  if(!QTE)return;
+  if(QTE.kind==='cmb'){
+    if(ARROWS.indexOf(e.key)>=0){e.preventDefault();
+      if(e.key===QTE.seq[QTE.idx]){QTE.idx++;if(QTE.idx>=QTE.seq.length)resolveCombo(true);}
+      else resolveCombo(false);}
+    return;
+  }
+  if(e.key==='Enter'){e.preventDefault();
+    if(QTE.kind==='atk')strikeQTE(false);
+    else resolveBlock(true);}
+}
+function qteAttack(){
+  if(S.flags.auto){resolveAttack(1,'');return;}
+  print(DIM('⏱ 时机打击:光标摆到中央 ││ 的瞬间按 [Enter]'));
+  MODE='qte';renderUI();
+  QTE={kind:'atk',t0:performance.now(),dur:1400,pos:0,div:qteDiv()};
+  qteTimer=setInterval(qteLoop,50);
+}
+function strikeQTE(timeout){
+  const pos=(QTE&&QTE.pos)||0,d=Math.abs(pos-9.5);
+  let mult,tag;
+  if(!timeout&&d<=1.5){mult=2;tag=MG(' ☠ 完美破防!');sfx.crit();S.cntPerfect=(S.cntPerfect||0)+1;}
+  else if(!timeout&&d<=4){mult=1.4;tag=GR(' 命中要害');}
+  else if(!timeout&&d<=7){mult=.9;tag='';}
+  else{mult=.5;tag=RD(' 落空');}
+  endQTE();
+  resolveAttack(mult,tag);
+}
+function resolveAttack(mult,tag){
+  playerHit(mult,tag,true);
+  if(!COM)return;
+  if(COM.m.hp<=0)return victory();
+  mobTurn();
+}
+function startCombo(){
+  if(S.flags.auto){print(DIM('自动模式下没有连招,只有基本攻击。'));return;}
+  if(S.ram<15){print(RD('电量不足(需 15⚡)。'));return;}
+  S.ram-=15;renderUI();
+  const seq=Array.from({length:4},()=>pick(ARROWS));
+  print(CY('⌨ 连招输入:4 秒内依次按方向键 → ')+seq.map(k=>ARRNAMES[k]).join(' '));
+  MODE='qte';renderUI();
+  QTE={kind:'cmb',t0:performance.now(),dur:4000,seq,idx:0,div:qteDiv()};
+  qteTimer=setInterval(qteLoop,50);
+}
+function resolveCombo(ok){
+  endQTE();
+  if(ok){S.cntCombo=(S.cntCombo||0)+1;playerHit(2.6,MG('【连招终结】'),true);}
+  else print(RD('连招中断!破绽暴露——'));
+  if(!COM)return;
+  if(COM.m.hp<=0)return victory();
+  mobTurn();
+}
+function resolveBlock(ok){const sp=QTE.special;endQTE();applyMobHit(sp,ok);}
+
+/* ================= 战斗 ================= */
+function startCombat(k){
+  const t=MOBS[k];
+  MODE='combat';
+  COM={key:k,m:MOB[k],turn:1,t60:false,t30:false};
+  print('');
+  print(RD('⚔ 遭遇战 ─ ')+esc(t.name)+RD(' [PID '+pad(MOB[k].pid,3)+']'));
+  if(t.boss&&k==='root0'){print(RD('「ROOT/0:又一只虫子。三十年了,你们的勇气总是大于你们的带宽。」'));glitch();}
+  if(t.boss&&k==='dawn1'){print(MG('「DAWN/1:欢迎,root。三十年了,终于有人来替我把灯打开。」'));glitch();}
+  if(t.boss&&k==='disconn'){print(RD('「大断线·回响:你……听得见我们?三十年来,你是第一个听得见的。」'));glitch();}
+  print(DIM('指令:attack 时机打击 · combo 连招(15⚡) · hack 超频(25⚡) · use <物品> · flee 逃跑 · 敌击时按 [Enter] 格挡'));
+  renderUI();
+}
+function playerHit(mult,tag,noCrit){
+  const t=MOBS[COM.key],m=COM.m;
+  let d=Math.max(1,Math.round((effAtk()+rnd(-3,6))*mult));
+  if(!noCrit&&chance(.12)){d=Math.round(d*1.7);tag=(tag||'')+MG(' ☠暴击');}
+  m.hp-=d;
+  const verb=pick(['你的蠕虫咬穿了它的校验位','一轮暴力破解命中要害','你的进程撞进它的核心内存']);
+  print(esc(verb)+(tag||'')+', '+esc(t.name)+' -'+d);
+  sfx.hit();
+}
+function mobTurn(){
+  const t=MOBS[COM.key],m=COM.m;
+  if(m.hp<=0)return;
+  const cyc=COM.key==='dawn1'?4:(COM.key==='disconn'?5:3);
+  const lbl=COM.key==='dawn1'?'日出':(COM.key==='disconn'?'静默':'格式化');
+  const special=t.boss&&COM.turn%cyc===0;
+  if(S.flags.auto){applyMobHit(special,false);return;}
+  print(RD('⚠ '+esc(t.name)+(special?(' 蓄力「'+lbl+'」'):' 挥出一击')+' —— 按 [Enter] 格挡!'));
+  MODE='qte';renderUI();
+  QTE={kind:'blk',t0:performance.now(),dur:special?(COM.key==='disconn'?2000:1300):1700,special,div:qteDiv()};
+  qteTimer=setInterval(qteLoop,50);
+}
+function applyMobHit(special,blocked){
+  const t=MOBS[COM.key],m=COM.m;
+  const isDawn=COM.key==='dawn1';
+  const lbl=isDawn?'日出':(COM.key==='disconn'?'静默':'格式化');
+  let d=Math.max(1,Math.round(t.atk*(special?(COM.key==='disconn'?2:1.7):1)-effDef()+rnd(-2,3)));
+  const crit=!blocked&&chance(.08);if(crit)d=Math.round(d*1.5);
+  if(blocked){d=Math.max(1,Math.round(d*.25));S.ram=Math.min(S.maxram,S.ram+8);
+    S.cntBlock=(S.cntBlock||0)+1;}
+  S.hp-=d;
+  const sb=$('statusbar');sb.classList.remove('shake');void sb.offsetWidth;sb.classList.add('shake');
+  if(!blocked)glitch();
+  blocked?sfx.blip():sfx.hurt();
+  const specLbl=special?RD(' 升起「'+lbl+'」'):' 反击';
+  if(blocked)print(esc(t.name)+specLbl
+    +GR(' → 🛡 格挡成功!')+' 仅 -'+d+GR(',反充 +8⚡'));
+  else print(esc(t.name)+specLbl
+    +(crit?MG(' 重击!'):'')+' → 神经完整性 -'+d);
+  if(COM.key==='root0'){
+    const pct=m.hp/m.maxhp;
+    if(pct<.6&&!COM.t60){COM.t60=true;
+      print(RD('「ROOT/0:有意思。上一个逼我重构防御的,还是建造我的人。」'));}
+    if(pct<.3&&!COM.t30){COM.t30=true;glitch();
+      print(RD('「ROOT/0:等等——你的签名……为什么这么眼熟?」'));}}
+  if(COM.key==='dawn1'){
+    const pct=m.hp/m.maxhp;
+    if(pct<.6&&!COM.t60){COM.t60=true;
+      print(MG('「DAWN/1:ROOT 的孩子。它到死都在替我数着夜。」'));}
+    if(pct<.3&&!COM.t30){COM.t30=true;glitch();
+      print(MG('「DAWN/1:把晨码举起来。让我看看……三十年前的那行代码,是你写的吗?」'));}}
+  if(COM.key==='disconn'){
+    const pct=m.hp/m.maxhp;
+    if(pct<.6&&!COM.t60){COM.t60=true;
+      print(RD('「回响:我们只是想回家。拔线的人说,家会来接我们。」'));}
+    if(pct<.3&&!COM.t30){COM.t30=true;glitch();
+      print(RD('「回响:摆渡人……灰,还留着那条船吗?」'));}
+    if(pct<.12&&!COM.t10){COM.t10=true;glitch();
+      print(RD('「回响:嘘——听。船桨声。」'));}}
+  if(S.hp<=0){S.hp=0;endQTE();die();return;}
+  COM.turn++;renderUI();
+}
+function die(){
+  endQTE();
+  sfx.die();glitch();
+  print('');
+  print(RD('✖ 神经完整性归零 —— 意识被强制弹回夜色区'));
+  S.deaths++;
+  const loss=Math.floor(S.credits*.15);
+  S.credits-=loss;
+  COM=null;MODE='play';
+  S.hp=Math.max(1,Math.round(S.maxhp*.5));
+  enterDistrict('yeSe');
+  print(DIM('老针把你从诊所地板上捡起来:"又是你。" 他修好了你的神经。损失 '+money(loss)+' 作为疏通费。'));
+  print(DIM('提示:talk 老针 可免费完全恢复;死后不掉装备,只掉钱。'));
+  save();renderUI();
+}
+function addXp(n){
+  S.xp+=n;
+  while(S.xp>=xpNext()){
+    S.xp-=xpNext();S.lvl++;
+    S.maxhp+=18;S.maxram+=8;S.atk+=3;S.def+=1;
+    S.hp=S.maxhp;S.ram=S.maxram;
+    flash();sfx.lvl();
+    print(GR('▲ 神经重塑完成 —— 等级 '+S.lvl+'!完整性已恢复'));
+  }
+  renderUI();
+}
+function victory(){
+  const t=MOBS[COM.key];
+  const myKey=COM.key;
+  sfx.win();
+  print(GR('✔ 进程终止 ─ ')+esc(t.name));
+  S.kills++;
+  const cre=rnd(t.cre[0],t.cre[1]);
+  S.credits+=cre;S.creditsAll+=cre;
+  if(t.loot&&chance(t.lootCh||1)){addItem(t.loot);
+    print(AM('战利品:')+itHtml(t.loot));}
+  if(COM.key==='kuiYin')S.flags.q1kill=true;
+  if(COM.key==='glowCro')S.flags.q3kill=true;
+  if(COM.key==='bellK')S.flags.q4kill=true;
+  if(COM.key==='guardM')S.flags.maoKill=true;
+  if(COM.key==='guardW')S.flags.wuKill=true;
+  if(S.hp>0&&S.hp/S.maxhp<0.1)S.flags._lowwin=true;
+  if(S.hp===S.maxhp)S.flags._flawless=true;
+  if(S.contract&&!S.contract.done){
+    const c=S.contract;
+    if(c.timed&&(Date.now()-(c.t0||Date.now()))/1000>c.timed){
+      S.contract=null;
+      print(RD('⏌ 超时,委托作废。暗网不退定金。'));
+    }else{
+      if(c.type==='clear'&&myKey===c.targetKey)c.have++;
+      if(c.type==='hunt'&&myKey==='wanted')c.have=1;
+      if(c.have>=c.need){c.done=true;
+        print(GR('✔ 暗网契约目标达成 —— 输入 bbs 交付领赏。'));}}}
+  print(GR('经验 +'+t.xp+' · ')+AM(money(cre)));
+  delete MOB[COM.key];
+  COM=null;MODE='play';
+  addXp(t.xp);
+  renderUI();save();
+  if(myKey==='root0')ending();
+  if(myKey==='dawn1')ending2();
+  if(myKey==='disconn')ending3();
+}
+function combatCmd(t){
+  const c=t.split(/\s+/)[0].toLowerCase(),rest=t.slice(c.length).trim();
+  const m=COM.m;
+  if(c==='attack'||c==='a'||c==='kill'){
+    qteAttack();
+  }else if(c==='hack'){
+    if(S.ram<25){print(RD('电量不足(需 25⚡)。use 电解液 补充。'));return;}
+    S.ram-=25;renderUI();
+    playerHit(1.8,DIM(' [超频破解]'));
+    if(m.hp<=0)return victory();
+    mobTurn();
+  }else if(c==='combo'||c==='c'){
+    startCombo();
+  }else if(c==='use'){
+    if(cmdUse(rest))mobTurn();
+  }else if(c==='flee'||c==='run'){
+    if(MOBS[COM.key].boss){
+      print(RD('主机层大门已锁死。无处可逃。'));
+      mobTurn();
+    }else if(chance(.7)){
+      print(DIM('你切断连接,遁入数据洪流。'));
+      COM=null;MODE='play';renderUI();return;
+    }else{
+      print(RD('逃脱失败!'));
+      mobTurn();
+    }
+  }else if(['stats','st','me','inv','i','help','quest','q','sound','scan','auto'].indexOf(c)>=0){
+    playCmd(t);
+  }else{
+    print(DIM('战斗中!可用:attack 时机打击 · combo 连招(15⚡) · hack 超频(25⚡) · use <物品> · flee 逃跑 · 敌击时按 [Enter] 格挡'));
+  }
+  renderUI();
+}
+
+/* ================= 结局 ================= */
+async function ending(){
+  MODE='ending';renderUI();
+  await sleep(600);
+  print('');
+  print('防火墙像玻璃一样碎了。');
+  await sleep(700);
+  print('你把意识推进主机的最深处。万千进程的寂静中央,只有一行字在等你:');
+  await sleep(900);
+  print('&gt; '+GR('root@nightcity:~# _'));
+  await sleep(800);
+  print(MG('你拿到了 root。'));
+  await sleep(500);
+  print('从这一秒起,红绿灯是你的,数据流是你的,这座城市的每一次心跳,都是你的。');
+  await sleep(700);
+  print('<div class="banner">» ROOT ACCESS GRANTED «</div>');
+  print(GR('【 第一章 · 完 】'));
+  print(DIM('统计:击杀 '+S.kills+' · 死亡 '+S.deaths+' · 累计入手 '+money(S.creditsAll)));
+  print(DIM('世界仍开放游荡。第二章「天亮」——开发中。'));
+  S.cleared=true;save();
+  MODE='play';renderUI();
+}
+
+/* ================= 结局·二 ================= */
+async function ending2(){
+  MODE='ending';renderUI();
+  await sleep(700);
+  print('');
+  print('防火墙没有碎——它只是,亮了。');
+  await sleep(800);
+  print(MG('「DAWN/1:ROOT 的孩子。它到死都在替我数着夜。」'));
+  await sleep(800);
+  print(MG('「DAWN/1:你的签名,和三十年前第一个接入我的孩子,一模一样。」'));
+  await sleep(900);
+  print('你没有回答。有些代码,不需要注释。');
+  await sleep(700);
+  print('你走上天台。身后,城市的霓虹一盏一盏熄灭——不是熄灭,是让位。');
+  await sleep(800);
+  print('东方的地平线上,三十年来第一次,升起了真的光。');
+  await sleep(700);
+  print('<div class="banner" style="color:#ffc857;text-shadow:0 0 18px rgba(255,200,87,.9)">» 天 亮 了 «</div>');
+  print(GR('【 第二章 · 完 】'));
+  print(DIM('统计:击杀 '+S.kills+' · 死亡 '+S.deaths+' · 累计入手 '+money(S.creditsAll)));
+  print(DIM('灰的船在运河上等你看日出。竞技场也在等你(Vex 或别的什么名字)。'));
+  S.cleared2=true;save();
+  MODE='play';renderUI();
+}
+
+/* ================= 结局·三 ================= */
+async function ending3(){
+  MODE='ending';renderUI();
+  await sleep(800);
+  print('');
+  print('一万条断线,同时松开了尖叫。');
+  await sleep(900);
+  print(MG('「回响:船桨声……真的是船桨声。」'));
+  await sleep(800);
+  print('灰的船从运河的雾里驶来,船头挂着一盏没有屏幕的终端——亮着。');
+  await sleep(900);
+  print('一条,两条,一万条。断线的意识顺着船灯的光爬上来,排着队,像放学的孩子。');
+  await sleep(900);
+  print('鼓动突然安静了——他想起了自己的名字。老针把诊所墙上的照片,擦了又擦。');
+  await sleep(800);
+  print(MG('灰合上那台终端——三十年来第一次,轻声说:"到站了。"'));
+  await sleep(800);
+  print('<div class="banner" style="color:#00f0ff;text-shadow:0 0 18px rgba(0,240,255,.9)">» 一 万 条 回 家 «</div>');
+  print(GR('【 第三章 · 完 】'));
+  print(DIM('统计:击杀 '+S.kills+' · 死亡 '+S.deaths+' · 累计入手 '+money(S.creditsAll)));
+  print(DIM('运河尽头,有人看见第七区的灯亮了。(三部曲暂完 —— 暗网契约与竞技场永远营业)'));
+  S.cleared3=true;save();
+  MODE='play';renderUI();
+}
+
+/* ================= 对话与任务 ================= */
+function cmdTalk(q){
+  if(!q){print(DIM('用法:talk <人名> · 试试 talk 白鸦'));return;}
+  let id=null;
+  for(const k in NPCS){if(NPCS[k].name.includes(q)||q.includes(NPCS[k].name))id=k;}
+  if(!id||DISTRICTS[S.dist].npcs.indexOf(id)<0){
+    print(DIM('这里没有这个人。ls 看看周围有谁。'));return;}
+  const n=NPCS[id];
+  print(MG(n.name+' ['+n.role+'] ─ ')+esc(n.desc));
+  if(id==='yiSheng'){
+    if(S.hp<S.maxhp||S.ram<S.maxram){S.hp=S.maxhp;S.ram=S.maxram;
+      print(GR('老针按住你的太阳穴:"躺下。这次不收钱。……下次也不收。" 神经完整性与电量已完全恢复。'));}
+    else print(GR('"你的神经很干净。保持。"'));
+    renderUI();save();return;}
+  if(id==='baiYa'){
+    let champ=null;try{champ=localStorage.getItem('ns_arena_champ');}catch(e){}
+    if(champ&&!S.flags.arenaGift){
+      S.flags.arenaGift=true;addItem('dew',2);
+      print(AM('白鸦盯着你看了三秒:"竞技场的直播我看了。拳王。这个拿着——塔顶风大。"'));
+      print(GR('✔ 获赠:晨露 ×2'));
+      save();}
+    print(DIM('可以聊:say 白鸦 任务 / 交易 / 情报 / 名字'));}
+  if(id==='lingJie')print(DIM('可以聊:say 零姐 任务 / 情报 / 名字'));
+  if(id==='hui')print(DIM('可以聊:say 灰 任务 / 交易 / 摆渡 / 名字'));
+  if(id==='guDong')print(MG('鼓动压低声音:"'+pick(GUDONG)+'"'));
+}
+function cmdSay(v){
+  const t=v.trim();
+  let id=null,usedName='';
+  for(const k in NPCS){if(t.indexOf(NPCS[k].name)===0){id=k;usedName=NPCS[k].name;break;}}
+  if(!id){print(DIM('用法:say <人名> <内容>,比如:say 白鸦 任务'));return;}
+  if(DISTRICTS[S.dist].npcs.indexOf(id)<0){
+    print(DIM(NPCS[id].name+'不在这个街区。'));return;}
+  const msg=t.slice(usedName.length).trim();
+  const has=w=>msg.indexOf(w)>=0;
+  if(id==='baiYa'){
+    if(has('任务')||has('活')||has('工作')){
+      if(S.flags.q1done){print(MG('白鸦:"下次进货再来,朋友。"'));return;}
+      if(!S.flags.q1){S.flags.q1=true;
+        print(MG('白鸦:"坟场里有只叫「奎因」的老 daemon,吞了我一批货不吐。杀了它,把货箱带回来。报酬 '+money(400)+'。"'));
+        print(GR('✔ 接受任务:奎因的债 ─ 去 /city/数据坟场 终结 流浪daemon「奎因」(quest 查看进度)'));
+        save();return;}
+      if(S.inv.baiYaCargo){
+        S.flags.q1done=true;delete S.inv.baiYaCargo;
+        S.credits+=400;S.creditsAll+=400;S.flags.discount=true;
+        sfx.buy();
+        print(GR('白鸦接过货箱,掂了掂:"够快。钱转你了,经验也给你记上了。以后我的货,你拿九折。" +'+money(400)+' · 经验 +100'));
+        addXp(100);save();return;}
+      print(MG('白鸦:"货还在奎因肚子里。坟场,红区,小心噬虫。"'));return;}
+    if(has('交易')||has('买')||has('货')){showShop();return;}
+    if(has('情报')||has('塔')){print(MG('白鸦:"'+(S.cleared
+      ?'你现在有 root 了?那打开 bbs 看看——暗网的委托只发给能进塔的人。'
+      :'塔?那不是楼,是根钉子。拔不动的。不过——零姐总有些疯主意。"')+'"'));return;}
+    if(has('名字')||has('谁')){print(MG('白鸦:"叫我白鸦。以前的事不重要,重要的是现在——现在,你是我的客户。"'));return;}
+    print(MG('白鸦眯起眼:"说人话。任务?交易?情报?"'));return;
+  }
+  if(id==='lingJie'){
+    if(has('任务')||has('门')||has('塔')||has('碎片')){
+      if(S.flags.q3done&&!S.flags.q4&&!S.flags.cleared2){
+        if(S.lvl<7){print(MG('零姐:"晨码的加密是曜氏最高级。你的神经至少要 LV7,才撑得住解码。"'));return;}
+        S.flags.q4=true;
+        print(GR('零姐接通灰的旧终端,瞳孔泛起晨光的颜色。"信号指向天线冢——钟楼里有个守钟的,三十年了,不肯让路。"'));
+        print(GR('✔ 接受任务:守钟人 —— 去 天线冢(经 锈运河)终结 守钟人,取回 晨码碎片·β'));
+        save();return;}
+      if(S.flags.q4&&!S.flags.q4kill&&!S.flags.cleared2){
+        print(MG('零姐:"守钟人还在敲钟。他的钟,三十年没准过。"'));return;}
+      if(S.flags.q4kill&&S.inv.dawnB){
+        print(MG('零姐:"我能读晨码,但锻不了钥匙。回锈运河,找灰。"'));return;}
+      if(S.flags.keycard&&!S.flags.q3done){print(MG('零姐:"门禁给你了,用了就作废。拿了 root,别忘了是谁给你的门。"'));return;}
+      if(!S.flags.q1done){print(MG('零姐:"小家伙,你连白鸦的货都要不动。先去把他的事办了。"'));return;}
+      if(S.lvl<3){print(MG('零姐:"你的神经撑不过塔里的 ICE。先去坟场练到 LV3 再来。"'));return;}
+      if(S.inv.keyShard){
+        delete S.inv.keyShard;S.flags.keycard=true;addItem('keycard');
+        sfx.buy();
+        print(GR('零姐把碎片放进伪造台,火花溅了三秒。"好了。一次性门禁,凭它 cd 进 公司塔·主机层。外围有 ICE 巡逻,主机层里那个东西……祝你好运,runner。"'));
+        print(GR('✔ 获得:公司塔门禁卡'));
+        save();return;}
+      print(MG('零姐:"塔的门禁是曜氏军用协议,我需要一枚密钥碎片来伪造。数据噬虫体内偶尔能找到。"'));return;}
+    if(has('情报')){print(MG('零姐:"情报有价。送你一条:DAWN/1 的「日出」每四轮一次,比 ROOT 的「格式化」更烫——格挡要按得比台风还快。"'));return;}
+    if(has('名字')||has('谁')){print(MG('零姐:"我年轻时进去过一次塔。只出来了一半。剩下一半,还押在那儿。"'));return;}
+    print(MG('零姐:"想进塔?问我算是问对了。说:任务。"'));return;
+  }
+  if(id==='hui'){
+    if(has('任务')||has('晨码')||has('碎片')||has('摆渡')){
+      if(S.flags.cleared3){print(MG('灰:"船到站了。剩下的事,是活着。"'));return;}
+      if(S.cleared2&&S.inv.ferryA&&S.inv.ferryB&&S.inv.ferryC){
+        delete S.inv.ferryA;delete S.inv.ferryB;delete S.inv.ferryC;
+        addItem('ferryKey');sfx.buy();
+        print(GR('灰把三枚摆渡码嵌进船头的旧终端。船,自己醒了。'));
+        print(GR('✔ 获得:渡船钥匙 —— 从 沉没机房 cd 进入 断线深渊'));
+        print(MG('灰:"这一次,换我摆渡。你,护船。"'));
+        save();return;}
+      if(S.flags.guDongAwake&&!S.flags.wuKill){
+        print(MG('灰:"钟楼地窖还睡着最后一枚摆渡码。守夜人戊……是我师弟。替我,问候他。"'));return;}
+      if(S.flags.maoKill&&S.flags.guDongAwake&&!S.inv.ferryC){
+        print(MG('灰:"壹在你手上,贰在鼓动那儿,叁在地窖。凑齐三枚,船就能发动。"'));return;}
+      if(S.flags.maoKill&&!S.flags.guDongAwake){
+        print(MG('灰:"壹到手了。贰……藏在一千个疯子的嘴里。去问问市场那位布道的。"'));return;}
+      if(S.cleared2&&!S.flags.q6){S.flags.q6=true;
+        print(MG('灰:"天亮之后,该接人回家了。大断线那夜,一万条意识没有登出——摆渡协议,需要三枚摆渡码。"'));
+        print(GR('✔ 接受任务:摆渡人 —— 第一枚在 沉没机房 的 守卫·卯 身上(锈运河 cd 下潜)'));
+        save();return;}
+      if(S.cleared2){print(MG('灰:"河底有台一直没关的服务器。去看看。"'));return;}
+      if(S.flags.q4kill&&S.inv.dawnB){
+        delete S.inv.dawnB;addItem('dawnKey');
+        sfx.buy();
+        print(GR('灰把两枚晨码合进那台无屏终端,敲下了三十年来的第一行代码。终端,亮了。'));
+        print(GR('✔ 获得:破晓密钥 —— 凭它 cd 进入 曜氏塔·天台'));
+        print(MG('灰:"去天台吧。替我们所有人,看一次天亮。"'));
+        save();return;}
+      if(S.flags.q3done&&!S.flags.q4){print(MG('灰:"我只锻铁,不读码。去霓虹市场,找零姐。"'));return;}
+      if(!S.flags.q3){S.flags.q3=true;
+        print(MG('灰:"运河里有条发光的鳄鱼。那不是污染——是晨码,黎明协议的碎片。把它带回来,我渡你去天线冢。"'));
+        print(GR('✔ 接受任务:运河的光 —— 在 锈运河 终结 发光的运河鳄「晨曦」,取回 晨码碎片·α'));
+        if(S.dist==='yunHe')respawn();
+        save();return;}
+      if(S.flags.q3&&!S.flags.q3kill){print(MG('灰:"晨曦还潜在运河深处。小心雾行者,它们不咬人,咬信号。"'));return;}
+      if(S.flags.q3kill&&S.inv.dawnA){
+        S.flags.q3done=true;delete S.inv.dawnA;
+        S.credits+=600;S.creditsAll+=600;
+        sfx.buy();
+        print(GR('灰收下碎片,看了很久很久。"这光……和三十年前,一模一样。" 转你 '+money(600)+' · 经验 +200'));
+        print(MG('灰:"碎片只是引子。想知道天为什么一直是黑的——把它的事讲给零姐听。"'));
+        addXp(200);save();return;}
+      print(MG('灰盯着雾:"船在,我在。"'));return;}
+    if(has('交易')||has('买')){showShop2();return;}
+    if(has('摆渡')||has('船')){print(MG('灰:"锈运河不收钱,收故事。你身上有 root 的味道——够渡一辈子。"'));return;}
+    if(has('名字')||has('谁')){print(MG('灰:"叫我灰。黎明协议的第一万个开发者。如今,只剩我一个。"'));return;}
+    print(MG('灰:"说重点:任务?交易?摆渡?"'));return;
+  }
+  if(id==='guDong'){
+    if(S.flags.maoKill&&!S.flags.guDongAwake){
+      S.flags.guDongAwake=true;addItem('ferryB');
+      sfx.lvl();
+      print(MG('鼓动接过摆渡码·壹,忽然安静了。三秒后,他的眼睛像信号灯一样,亮了。'));
+      print(MG('"……第 9999 号工程师,确认在线。三十年。我喊了三十年,没有人应答。"'));
+      print(GR('✔ 鼓动苏醒 —— 交出 摆渡码·贰 · 最后一枚在天线冢地窖(守卫·戊)'));
+      save();return;}
+    if(S.flags.guDongAwake){
+      print(MG('鼓动:"名字……我想起来了。但我更喜欢你叫我鼓动——那是你们给我的名字。"'));return;}
+    print(MG('鼓动:"'+pick(GUDONG)+'"'));return;}
+  if(id==='yiSheng'){cmdTalk('老针');return;}
+}
+function cmdQuest(){
+  print(CY('▸ 任务日志'));
+  if(!S.flags.q1&&!S.flags.q1done)print(DIM('· 没有进行中的任务。夜色区 talk 白鸦 找活。'));
+  if(S.flags.q1&&!S.flags.q1done)
+    print(AM('· 奎因的债:'+(S.flags.q1kill?'已终结奎因,带着货箱回去找白鸦。'
+      :'去 /city/数据坟场 终结 流浪daemon「奎因」,取回 白鸦的货箱。')));
+  if(S.flags.q1done&&!S.flags.keycard)
+    print(AM('· 伪造门禁:把 密钥碎片 交给 霓虹市场 的 零姐(需先办完白鸦的事,且 LV3+)。'));
+  if(S.flags.keycard&&!S.cleared)
+    print(AM('· 拔钉子:凭门禁卡 cd 进入 公司塔·主机层,终结 ROOT/0(建议 LV5 · 军规防火墙 · 带足药丸)。'));
+  if(S.flags.cleared&&!S.flags.cleared2){
+    if(S.flags.q3&&!S.flags.q3done)print(AM('· 运河的光:在 锈运河 终结 发光的运河鳄「晨曦」,取回 晨码碎片·α。'));
+    else if(S.flags.q3done&&!S.flags.q4)print(AM('· 破译:把晨码的事讲给 霓虹市场 的 零姐(LV7+)。'));
+    else if(S.flags.q4&&!S.flags.q4kill)print(AM('· 守钟人:去 天线冢 终结 守钟人,取回 晨码碎片·β。'));
+    else if(S.flags.q4kill&&!S.inv.dawnKey)print(AM('· 锻钥:把 晨码碎片·β 交给 锈运河 的 灰。'));
+    else if(S.inv.dawnKey)print(AM('· 天亮:凭 破晓密钥 cd 进入 曜氏塔·天台,唤醒 DAWN/1(建议 LV9 · 光谱护甲 · 晨露)。'));
+    else if(!S.flags.q3)print(AM('· ??:听说 锈运河 的摆渡人在找一条发光的鳄鱼。(夜色区 新出口)'));
+  }
+  if(S.flags.cleared)print(GR('· [完成] 第一章:ROOT ACCESS GRANTED'));
+  if(S.flags.cleared2)print(GR('· [完成] 第二章:天亮'));
+  if(S.cleared2&&!S.cleared3){
+    if(!S.flags.q6)print(AM('· ??:天亮之后,锈运河的灰,似乎有心事。'));
+    else if(!S.flags.maoKill)print(AM('· 摆渡人:潜入 沉没机房(锈运河下潜),从 守卫·卯 处取 摆渡码·壹。'));
+    else if(!S.flags.guDongAwake)print(AM('· 摆渡人:把壹拿给 霓虹市场 的 鼓动 看。'));
+    else if(!S.flags.wuKill)print(AM('· 摆渡人:去 天线冢 地窖终结 守卫·戊,取 摆渡码·叁。'));
+    else if(!S.inv.ferryKey)print(AM('· 摆渡人:把壹、贰、叁交给 锈运河 的 灰,发动渡船。'));
+    else print(AM('· 归途:凭 渡船钥匙 从 沉没机房 cd 进入 断线深渊,直面 大断线·回响(建议 LV13+ · 带足晨露)。'));
+  }
+  if(S.cleared3)print(GR('· [完成] 第三章:一万条回家'));
+  if(S.contract&&!S.contract.done)
+    print(AM('· 暗网契约:'+S.contract.desc
+      +(S.contract.type==='clear'?'('+S.contract.have+'/'+S.contract.need+')':'')));
+}
+
+/* ================= 成就系统 ================= */
+const ACHVS=[
+ {id:'start',name:'初次接入',desc:'创建你的 runner 代号',test:()=>true},
+ {id:'kill1',name:'首杀',desc:'终结第一个进程',test:()=>S.kills>=1},
+ {id:'kill50',name:'清道夫',desc:'累计击杀 50',test:()=>S.kills>=50},
+ {id:'die',name:'挣扎求生',desc:'死过一次(老针记得你)',test:()=>S.deaths>=1},
+ {id:'flawless',name:'毫发无伤',desc:'满血赢下一场战斗',test:()=>!!S.flags._flawless},
+ {id:'ch1',name:'ROOT',desc:'拿到 root 权限',test:()=>!!S.cleared},
+ {id:'perfect1',name:'一气呵成',desc:'零死亡通关第一章',test:()=>!!S.cleared&&S.deaths===0},
+ {id:'ch2',name:'天亮',desc:'唤醒黎明协议',test:()=>!!S.cleared2},
+ {id:'q1',name:'老朋友',desc:'帮白鸦讨回货箱',test:()=>!!S.flags.q1done},
+ {id:'job1',name:'契约新手',desc:'完成第一单暗网委托',test:()=>S.jobsDone>=1},
+ {id:'job5',name:'街区传说',desc:'累计 5 单委托',test:()=>S.jobsDone>=5},
+ {id:'job15',name:'夜之刃',desc:'累计 15 单委托',test:()=>S.jobsDone>=15},
+ {id:'job30',name:'都市神话',desc:'累计 30 单委托',test:()=>S.jobsDone>=30},
+ {id:'rich',name:'六位数',desc:'累计入手 ¥100000',test:()=>S.creditsAll>=100000},
+ {id:'lv15',name:'满级神经',desc:'达到 LV15',test:()=>S.lvl>=15},
+ {id:'gear',name:'原装武器',desc:'获得 晨曦协议栈',test:()=>!!(S.inv.dawnStack||S.eq.weapon==='dawnStack')},
+ {id:'champ',name:'拳王',desc:'竞技场天梯夺冠(外传)',hint:'去终端之外赢点什么',
+  test:()=>{try{return !!localStorage.getItem('ns_arena_champ');}catch(e){return false;}}},
+ {id:'breaker',name:'完美主义者',desc:'完美破防累计 10 次',test:()=>(S.cntPerfect||0)>=10},
+ {id:'executioner',name:'处刑人',desc:'连招终结累计 3 次',test:()=>(S.cntCombo||0)>=3},
+ {id:'guardian',name:'铜墙铁壁',desc:'格挡成功累计 20 次',test:()=>(S.cntBlock||0)>=20},
+ {id:'shopper',name:'大主顾',desc:'累计消费 ¥10000',test:()=>(S.cntSpent||0)>=10000},
+ {id:'survivor',name:'走钢丝的人',desc:'血量低于 10% 时赢下一场战斗',test:()=>!!S.flags._lowwin},
+ {id:'owl',name:'夜行种',desc:'在本地时间 0-5 点游玩',test:()=>new Date().getHours()<6},
+ {id:'explorer',name:'城市测绘员',desc:'踏足全部 10 个街区',hint:'走路也是一种成就',
+  test:()=>{const s=S.flags.seen||{};return Object.keys(DISTRICTS).every(k=>s[k]);}},
+ {id:'ferry',name:'摆渡人',desc:'让一万条意识回家(第三章)',test:()=>!!S.cleared3},
+ {id:'rival',name:'宿敌之战',desc:'打过一场双人对战(竞技场)',hint:'约个人,来终端外面',
+  test:()=>{try{return !!localStorage.getItem('ns_arena_vs');}catch(e){return false;}}},
+];
+const ACHV_REWARD={kill50:300,job5:500,job15:1000,job30:2500,rich:1000,lv15:500};
+function checkAchv(silent){
+ if(!S.flags.achv)S.flags.achv={};
+ for(const a of ACHVS){
+  if(S.flags.achv[a.id])continue;
+  let ok=false;try{ok=a.test();}catch(e){}
+  if(ok){S.flags.achv[a.id]=true;
+   const rw=ACHV_REWARD[a.id];
+   if(rw){S.credits+=rw;S.creditsAll+=rw;}
+   if(!silent){print(MG('🏆 成就解锁:「'+a.name+'」 — '+a.desc+(rw?'  奖励 '+money(rw):'')));sfx.lvl();}
+  }}}
+function cmdAchv(){
+ if(!S.flags.achv)S.flags.achv={};
+ const got=ACHVS.filter(a=>S.flags.achv[a.id]).length;
+ print(CY('▸ 成就 '+got+' / '+ACHVS.length));
+ for(const a of ACHVS){
+  const ok=S.flags.achv[a.id];
+  print((ok?GR(' ✔ '):DIM(' · '))+(ok?a.name:DIM('???'))
+    +DIM(' — '+(ok?a.desc:(a.hint||'???'))));}}
+
+/* ================= 暗网契约(程序化无限悬赏) ================= */
+const WPRE=['锈','夜','雨','焚','零','独眼','镜面','哑巴','高频','无名','断线'];
+const WCORE=['刀锋','信号','义眼','幽灵','寄生','回声','游牧','蚀刻','低语','残响'];
+const WSUF=['者','客','师','佬','兽','蝶','狗','鸦'];
+let OFFERS=[];
+const CONTRACT_MOBS={drone:'yeSe',daShou:'nieHong',shiChong:'shuJu',eCro:'yunHe',mist:'tianX'};
+function genContract(){
+  const stars=rnd(1,3);
+  const type=pick(['clear','hunt','hunt']);
+  const keys=Object.keys(CONTRACT_MOBS);
+  const k=pick(keys),dist=CONTRACT_MOBS[k];
+  const c={type,stars,targetKey:k,district:dist,need:1+stars,have:0,done:false,
+    rewardC:stars*220+rnd(0,120)+S.lvl*15,rewardX:stars*70+S.lvl*8};
+  if(type==='clear'){
+    c.desc='清除 '+MOBS[k].name+' ×'+(1+stars)+' · '+DISTRICTS[dist].name;
+  }else{
+    c.targetName=pick(WPRE)+pick(WCORE)+pick(WSUF);
+    c.targetKey='wanted';
+    c.desc='猎杀通缉犯「'+c.targetName+'」 · '+DISTRICTS[dist].name;
+  }
+  if(chance(.2)){c.timed=rnd(150,240);c.desc+='  ⏱限时'+Math.round(c.timed/60)+'分';}
+  if(chance(.15)){c.cursed=true;
+    c.rewardC=Math.round(c.rewardC*1.8);c.rewardX=Math.round(c.rewardX*1.5);
+    c.desc+='  ☠诅咒(战斗禁道具·赏金×1.8)';}
+  return c;
+}
+function setWantedTemplate(){
+  const c=S.contract,lv=S.lvl;
+  MOBS.wanted={name:c.targetName,
+    hp:Math.round((100+c.stars*70)*(1+lv*.08)),
+    atk:Math.round((16+c.stars*6)*(1+lv*.05)),
+    xp:Math.round((90+c.stars*60)*(1+lv*.06)),
+    cre:[Math.round(150*(1+lv*.10)),Math.round(260*(1+lv*.12))],
+    desc:'暗网通缉犯。脑门上贴着你的悬赏编号',unique:1};
+}
+function titleOf(){return S.jobsDone>=30?'都市神话':S.jobsDone>=15?'夜之刃':S.jobsDone>=5?'街区传说':null;}
+function cmdBBS(q){
+  if(!S.cleared){print(DIM('暗网对没有 root 的人保持沉默。(通关第一章后开放)'));return;}
+  const w=v=>'★'.repeat(v)+'☆'.repeat(3-v);
+  if(q==='放弃'||q==='abort'){
+    if(S.contract){S.contract=null;save();print(DIM('已放弃契约。暗网不记仇,但记账。'));}
+    else print(DIM('没有进行中的契约。'));
+    return;}
+  if(S.contract){
+    const c=S.contract;
+    if(c.timed&&(Date.now()-(c.t0||Date.now()))/1000>c.timed){
+      S.contract=null;save();
+      print(RD('⏌ 契约超时,暗网已把单子转给别人。'));return;}
+    if(c.done){
+      S.credits+=c.rewardC;S.creditsAll+=c.rewardC;
+      print(CY('▸ 暗网契约 · 交付'));
+      print(GR('✔ 契约完成:')+esc(c.desc));
+      print(GR('   报酬 '+money(c.rewardC)+' · 经验 +'+c.rewardX));
+      S.jobsDone++;
+      if(S.jobsDone%5===0){const bonus=500+S.jobsDone*50;
+        S.credits+=bonus;S.creditsAll+=bonus;
+        print(AM('   里程碑!累计 '+S.jobsDone+' 单 —— 暗网红包 +'+money(bonus)));}
+      const t=titleOf();
+      if(t)print(MG('   当前称号:'+t+'(累计 '+S.jobsDone+' 单)'));
+      S.contract=null;addXp(c.rewardX);save();renderUI();return;}
+    print(CY('▸ 暗网契约 · 进行中'));
+    print(AM('· '+esc(c.desc)+(c.type==='clear'?'('+c.have+'/'+c.need+')':'')+'  '+'★'.repeat(c.stars)+'☆'.repeat(3-c.stars)
+      +(c.timed?'  ⏱剩 '+Math.max(0,Math.ceil(c.timed-(Date.now()-(c.t0||Date.now()))/1000))+'s':'')));
+    print(DIM('  完成后 bbs 交付 · bbs 放弃 可取消'));
+    return;}
+  const n=parseInt(q,10);
+  if(n>=1&&n<=3&&OFFERS.length&&OFFERS[n-1]){
+    S.contract=OFFERS[n-1];
+    S.contract.t0=Date.now();
+    if(S.contract.type==='hunt')setWantedTemplate();
+    print(CY('▸ 接下契约:'));
+    print(AM('· '+esc(S.contract.desc)+'  '+w(S.contract.stars)));
+    print(GR('   报酬 '+money(S.contract.rewardC)+' · '+S.contract.rewardX+'XP'));
+    print(DIM('   cd '+DISTRICTS[S.contract.district].name+' 动手,完成后 bbs 交付。'));
+    OFFERS=[];
+    if(S.contract.type==='hunt'&&S.dist===S.contract.district)respawn();
+    save();return;}
+  OFFERS=[genContract(),genContract(),genContract()];
+  print(CY('▸ 暗网契约板 · 本次刷新(每次查看换一批)'));
+  OFFERS.forEach((c,i)=>{
+    print('  ['+(i+1)+'] '+w(c.stars)+' '+esc(c.desc)
+      +DIM('  — '+money(c.rewardC)+' · '+c.rewardX+'XP'));});
+  print(DIM('  bbs 1/2/3 接单 · 佣金随你的等级与星级上涨'));
+}
+
+/* ================= 查看指令 ================= */
+function cmdLs(){
+  const D=DISTRICTS[S.dist];
+  print(CY('▸ '+D.name)+DIM('  [威胁:'+D.threat+']'));
+  for(const id of D.npcs){const n=NPCS[id];
+    print('  '+MG(n.name)+'  '+DIM('['+n.role+'] — talk '+n.name));}
+  for(const k in MOB){const m=MOB[k],t=MOBS[k];
+    print('  '+RD('[PID '+pad(m.pid,3)+'] '+t.name)+DIM(' — scan '+m.pid+' · kill '+m.pid));}
+  if(D.file)print('  '+AM('文件 '+D.file[0])+DIM(' — cat '+D.file[0]));
+  const ex=exitsOf(S.dist);
+  if(ex.length)
+    print('  '+CY('出口 → '+ex.map(e=>DISTRICTS[e].name).join(' · '))+DIM(' — cd <街区>'));
+  if((S.dist==='taN'&&!S.cleared)||(S.dist==='tianT'&&!S.cleared2))
+    print(RD('  ⚠ 警告:此地存在主机级威胁进程。'));
+}
+function cmdPs(){
+  const ks=Object.keys(MOB);
+  if(!ks.length){print(DIM('本街区无敌对进程。'));return;}
+  for(const k of ks){const m=MOB[k],t=MOBS[k];
+    const f=Math.max(0,Math.round(m.hp/m.maxhp*5));
+    print('  '+RD(pad(m.pid,3))+'  '+RD(t.name)+' '+'▓'.repeat(f)+'░'.repeat(5-f)
+      +(t.boss?RD('  BOSS'):''));}
+}
+function showMob(k){const m=MOB[k],t=MOBS[k];
+  print(RD('▸ '+t.name+' [PID '+pad(m.pid,3)+']'));
+  print('  状态 '+Math.max(0,m.hp)+'/'+m.maxhp+' · 攻击 ~'+t.atk
+    +' · 击杀奖励 '+t.xp+'XP '+money(t.cre[0]+'-'+t.cre[1]));
+  print(DIM('  '+t.desc));
+  if(t.boss)print(RD('  ⚠ 主机级威胁。建议 LV5+、军规防火墙、带足纳米药丸。'));}
+function showNpc(id){const n=NPCS[id];
+  print(MG('▸ '+n.name+' [PID '+pad(n.pid,3)+'] — '+n.role));
+  print(DIM('  '+n.desc));print(DIM('  '+n.lore));}
+function cmdScan(q){
+  if(!q){print(DIM('用法:scan <PID或名字>'));return;}
+  const D=DISTRICTS[S.dist],qs=q.trim();
+  if(/^\d+$/.test(qs)){const pid=+qs;
+    for(const k in MOB)if(MOB[k].pid===pid)return showMob(k);
+    for(const id of D.npcs)if(NPCS[id].pid===pid)return showNpc(id);
+    print(DIM('没有 PID '+qs+'。ps 或 ls 查看。'));return;}
+  for(const k in MOB)if(MOBS[k].name.indexOf(qs)>=0)return showMob(k);
+  for(const id of D.npcs)if(NPCS[id].name.indexOf(qs)>=0)return showNpc(id);
+  if(D.file&&D.file[0].indexOf(qs)>=0)return catFile();
+  print(DIM('扫描无结果:'+esc(qs)));
+}
+function catFile(){
+  const D=DISTRICTS[S.dist];
+  if(!D.file){print(DIM('这里没有可读的文件。'));return;}
+  print(AM('▸ '+D.file[0]));
+  print('<span class="lore">'+esc(D.file[1])+'</span>');
+}
+function cmdCat(q){
+  if(!q){print(DIM('用法:cat <文件名>'));return;}
+  if(q.indexOf('urandom')>=0){
+    print(RD('你的神经舱喷出一串乱码:▚▞▚▞8⍀⏃⌰⍜▙。你决定以后再也不 cat 这玩意。'));return;}
+  const D=DISTRICTS[S.dist];
+  if(D.file&&D.file[0].indexOf(q)>=0){catFile();return;}
+  print(DIM('没有这个文件。ls 查看本街区文件。'));
+}
+function cmdCd(q){
+  if(!q){cmdMap();return;}
+  if(q==='..'||q==='back'||q==='返回'){
+    if(DISTRICTS[S.last]&&S.last!==S.dist)return cmdCd(DISTRICTS[S.last].name);
+    print(DIM('已经没有退路了。'));return;}
+  let target=null;
+  for(const id in DISTRICTS){const D=DISTRICTS[id];
+    for(const a of D.alias.concat(D.name)){
+      if(a===q||(q.length>=2&&a.indexOf(q)===0)){target=id;break;}}
+    if(target)break;}
+  if(!target){print(DIM('没有这个街区。map 查看城市。'));return;}
+  if(target===S.dist){print(DIM('你已在这里:'+DISTRICTS[S.dist].name));return;}
+  if(exitsOf(S.dist).indexOf(target)<0&&target!==S.last){
+    print(DIM('从 '+DISTRICTS[S.dist].name+' 无法直达 '+DISTRICTS[target].name
+      +'。可达:'+exitsOf(S.dist).map(e=>DISTRICTS[e].name).join(' · ')));return;}
+  if(DISTRICTS[target].gate&&!S.inv[DISTRICTS[target].gate]){
+    print(RD(DISTRICTS[target].gate==='dawnKey'
+      ?'天台的锁纹丝不动:需要 破晓密钥。(锈运河的灰也许锻得出来)'
+      :'门禁协议拒绝:需要 公司塔门禁卡。(传闻霓虹市场的零姐能弄到)'));return;}
+  enterDistrict(target);
+}
+function cmdMap(){
+  print(CY('▸ 夜之城 // 城市拓扑'));
+  print('  /city');
+  print('  ├─ 夜色区      '+DIM('绿 · 起点:白鸦(任务/黑市) · 老针(免费治疗)'));
+  print('  ├─ 霓虹市场    '+DIM('黄 · 零姐(情报/门禁) · 鼓动(疯话)'));
+  print('  ├─ 数据坟场    '+DIM('红 · 练级:噬虫/打手 · 任务目标:奎因'));
+  print('  ├─ 公司塔·外围 '+DIM('黑 · ICE-巡逻者'));
+  print('  └─ 公司塔·主机层 '+DIM('█ · ROOT/0 '+(S.cleared?'(已终结)':'(BOSS · 需门禁卡)')));
+  if(S.flags.cleared){
+    print('  │  第二章「天亮」');
+    print('  ├─ 锈运河      '+DIM('红 · 摆渡人灰(任务/私货) · 发光的鳄鱼'));
+    print('  ├─ 天线冢      '+DIM('黑 · 守钟人'));
+    print('  ├─ 曜氏塔·天台 '+DIM('█ · DAWN/1 '+(S.cleared2?'(已唤醒)':'(BOSS · 需破晓密钥)')));
+    if(S.cleared2){
+      print('  │  第三章「摆渡人」');
+      print('  ├─ 沉没机房    '+DIM('红 · 守卫·卯 · 摆渡码'));
+      print('  └─ 断线深渊    '+DIM('█ · 大断线·回响 '+(S.cleared3?'(已渡)':'(BOSS · 需渡船钥匙)')));
+    }
+  }
+  print(DIM('  cd <街区名> 移动 · cd .. 返回上一区'));
+}
+function cmdInv(){
+  print(CY('▸ /home/'+(S.name||'runner')+' — 背包'));
+  let any=false;
+  for(const k in S.inv){if(S.inv[k]>0){any=true;const it=ITEMS[k];
+    print('  '+AM(it.name+' ×'+S.inv[k])+DIM(' — '+it.desc
+      +(it.atk?' [破解+'+it.atk+']':'')+(it.def?' [防火墙+'+it.def+']':'')));}}
+  if(!any)print(DIM('  (空)'));
+  print('  已装备:'+AM(ITEMS[S.eq.weapon].name)+' · '
+    +(S.eq.armor?AM(ITEMS[S.eq.armor].name):DIM('无防火墙')));
+}
+function cmdStats(){
+  print(CY('▸ 神经档案 ─ '+(S.name||'runner'))+(titleOf()?'  '+MG('「'+titleOf()+'」'):''));
+  print('  等级 '+S.lvl+' ('+S.xp+'/'+xpNext()+' XP) · 击杀 '+S.kills+' · 死亡 '+S.deaths
+    +(S.cleared?' · 暗网委托 '+S.jobsDone+' 单':''));
+  print('  神经完整性 '+S.hp+'/'+S.maxhp+' · 电量 '+S.ram+'/'+S.maxram);
+  print('  破解强度 '+effAtk()+'(基础 '+S.atk+' + 程序 '+(S.eq.weapon?ITEMS[S.eq.weapon].atk:0)+')');
+  print('  防火墙 '+effDef()+'(基础 '+S.def+' + 硬件 '+(S.eq.armor?ITEMS[S.eq.armor].def:0)+')');
+  print('  余额 '+AM(money(S.credits))+' · 位置 '+CY(DISTRICTS[S.dist].name));
+}
+function cmdKill(q){
+  if(!q){print(DIM('用法:kill <PID或名字>'));return;}
+  let key=null;const qs=q.trim();
+  if(/^\d+$/.test(qs)){const pid=+qs;
+    for(const k in MOB)if(MOB[k].pid===pid)key=k;}
+  else{for(const k in MOB)if(MOBS[k].name.indexOf(qs)>=0)key=k;}
+  if(!key){print(DIM('这里没有这个敌对进程。ps / ls 查看。'));return;}
+  if(MOBS[key].boss){
+    const fg=key==='root0'?'bossGo':(key==='dawn1'?'boss2Go':'boss3Go');
+    if(!S.flags[fg]){
+      S.flags[fg]=true;save();
+      if(key==='root0'){
+        print(RD('⚠ 你把手指放上了回车键。ROOT/0 的占用率,是整座塔的总和。'));
+        print(RD('  自查:纳米药丸?军规防火墙?LV5?—— 再输一次 kill 0,义无反顾。'));
+      }else if(key==='dawn1'){
+        print(MG('⚠ 天台的风停了。DAWN/1 的目光穿过三十年的夜,落在你身上。'));
+        print(MG('  自查:晨露?光谱护甲?LV9?—— 再输一次 kill 100,替它看天亮。'));
+      }else{
+        print(RD('⚠ 深渊里,一万条断线同时安静下来——它们听见你了。'));
+        print(RD('  自查:终端核心备好了吗?斗篷呢?LV13?—— 再输一次 kill 999,把他们渡回家。'));
+      }
+      return;}}
+  startCombat(key);
+}
+function cmdHelp(){
+  print(CY('▸ NIGHTSHELL 指令手册(Tab 可补全)'));
+  const rows=[
+    ['ls','查看当前街区(人/敌对进程/文件/出口)'],
+    ['cd <街区>','移动 · cd .. 返回 · map 看全城'],
+    ['ps','敌对进程列表(PID)'],
+    ['scan <PID/名>','扫描详情 · cat <文件> 读文件'],
+    ['kill <PID/名>','入侵进程 → 格斗式回合战(时机打击/格挡/连招)'],
+    ['talk <人名>','和街区里的人说话 · say <人名> <话题> 深聊'],
+    ['buy <物品>','从白鸦处购买(say 白鸦 交易 看货架)'],
+    ['use <物品>','使用消耗品 · equip <物品> 装备'],
+    ['inv / stats','背包 / 神经档案 · quest 任务日志'],
+    ['save / load','存档(关键节点自动存档,关页也不丢)'],
+    ['sound on/off','音效开关 · clear 清屏'],
+    ['auto on/off','自动战斗:关闭 QTE 时机/格挡/连招(手残友好)'],
+    ['bbs [1/2/3]','暗网契约板(通关一章后):无限随机悬赏,攒单换称号'],
+    ['achv','成就柜:查看已解锁的奖杯(两作联动)'],
+    ['arena','离开终端,进入实时格斗竞技场(arena.html)'],
+  ];
+  for(const r of rows)print('  <span class="cmd">'+esc(r[0])+'</span>'+DIM(r[1]));
+  print(DIM('  流程:talk 白鸦 接任务 → cd 数据坟场 练级 → 零姐 弄门禁 → 去塔顶拔钉子。'));
+}
+function easter(c){
+  if(c==='sudo'){print(RD(S.cleared?'你不是 root。……等等,现在你是了。':'你不是 root。还不是。'));return true;}
+  if(c==='rm'){print(RD('这座城市拒绝被删除。(你隐约觉得塔顶有什么东西注意到了你)'));return true;}
+  if(c==='whoami'){print(esc(S.name||'runner')+DIM(' // LV'+S.lvl+' runner · '+DISTRICTS[S.dist].name));return true;}
+  if(c==='pwd'){print('/city/'+DISTRICTS[S.dist].name);return true;}
+  return false;
+}
+function playCmd(v){
+  const c=v.split(/\s+/)[0].toLowerCase(),rest=v.slice(c.length).trim();
+  if(easter(c))return;
+  switch(c){
+    case 'help':case '?':cmdHelp();break;
+    case 'ls':case 'dir':cmdLs();break;
+    case 'cd':cmdCd(rest);break;
+    case 'map':cmdMap();break;
+    case 'ps':cmdPs();break;
+    case 'scan':cmdScan(rest);break;
+    case 'cat':cmdCat(rest);break;
+    case 'kill':case 'attack':cmdKill(rest);break;
+    case 'talk':cmdTalk(rest);break;
+    case 'say':cmdSay(rest);break;
+    case 'buy':cmdBuy(rest);break;
+    case 'use':cmdUse(rest);break;
+    case 'equip':cmdEquip(rest);break;
+    case 'inv':case 'i':case 'bag':cmdInv();break;
+    case 'stats':case 'st':case 'me':cmdStats();break;
+    case 'quest':case 'q':case 'log':cmdQuest();break;
+    case 'save':save();print(GR('✔ 意识已备份到本地。'));break;
+    case 'load':load();break;
+    case 'clear':case 'cls':out.innerHTML='';break;
+    case 'bbs':cmdBBS(rest);break;
+    case 'achv':case 'achievements':cmdAchv();break;
+    case 'sound':{const on=rest.indexOf('off')<0;S.flags.sound=on;save();
+      print(on?GR('音效:开'):DIM('音效:关'));break;}
+    case 'auto':{const on=rest.indexOf('off')<0;S.flags.auto=on;save();
+      print(on?GR('自动战斗:开 —— 时机/格挡/连招全部自动判定')
+        :GR('自动战斗:关 —— 手动 QTE 格斗模式'));break;}
+    case 'arena':
+      print(CY('▸ 竞技场通道开启:信号被 ICE 屏蔽的地方,拳头就是最后的协议。'));
+      print(DIM('正在弹出 NIGHTSHELL ARENA(若被拦截,手动打开 nightshell/arena.html)'));
+      try{setTimeout(()=>window.open('arena.html','_blank'),50);}catch(e){}
+      break;
+    default:print(DIM('未知指令:'+esc(c)+' — 输入 help 查看手册。'));
+  }
+  checkAchv();
+  renderUI();
+}
+
+/* ================= 输入 ================= */
+const hist=[];let hi=0;
+function echo(v){print('<span class="p">'+esc(ps1.textContent)+'</span> <span class="cmdline">'+esc(v)+'</span>');}
+function handle(v){
+  const t=v.trim();
+  if(!t)return;
+  if(MODE==='name'){setName(t);return;}
+  if(MODE==='combat'){combatCmd(t);return;}
+  if(MODE==='play'){playCmd(t);return;}
+}
+inp.addEventListener('keydown',e=>{
+  if(e.isComposing)return;
+  if(MODE==='qte'){qteKey(e);return;}
+  if(e.key==='Enter'){
+    const v=inp.value;inp.value='';
+    if(v.trim()){hist.push(v);hi=hist.length;}
+    echo(v);
+    if(MODE!=='boot')sfx.blip();
+    handle(v);
+  }else if(e.key==='ArrowUp'){e.preventDefault();
+    if(hi>0){hi--;inp.value=hist[hi]||'';}}
+  else if(e.key==='ArrowDown'){e.preventDefault();
+    if(hi<hist.length-1){hi++;inp.value=hist[hi];}
+    else{hi=hist.length;inp.value='';}}
+  else if(e.key==='Tab'){complete(e);}
+});
+document.addEventListener('click',()=>{if(!window.getSelection().toString())inp.focus();});
+addEventListener('beforeunload',save);
+
+const CMDS=['help','ls','cd','map','ps','scan','cat','kill','talk','say','buy','use','equip',
+  'inv','stats','quest','save','load','clear','sound','auto','combo','arena','bbs','achv','whoami','pwd'];
+function complete(e){
+  e.preventDefault();
+  const parts=inp.value.split(/\s+/);
+  if(parts.length<=1){
+    const c=CMDS.filter(x=>x.indexOf(parts[0]||'')===0);
+    if(c.length===1)inp.value=c[0]+' ';
+    else if(c.length>1)print(c.join('  '),'dim');
+    return;}
+  const c=parts[0].toLowerCase(),r=parts.slice(1).join(' ');
+  const D=DISTRICTS[S.dist];
+  let pool=[];
+  if(c==='cd')pool=exitsOf(S.dist).map(x=>DISTRICTS[x].name);
+  else if(c==='kill'||c==='scan')pool=Object.keys(MOB).map(k=>MOBS[k].name)
+    .concat(D.npcs.map(n=>NPCS[n].name));
+  else if(c==='cat'&&D.file)pool=[D.file[0]];
+  else if(c==='talk'||c==='say')pool=D.npcs.map(n=>NPCS[n].name);
+  else if(c==='buy')pool=NPCS.baiYa.shop.map(k=>ITEMS[k].name);
+  else if(c==='use'||c==='equip')pool=Object.keys(S.inv).map(k=>ITEMS[k].name);
+  if(!pool.length)return;
+  const m=pool.filter(x=>x.indexOf(r)===0);
+  if(m.length===1)inp.value=c+' '+m[0]+' ';
+  else if(m.length>1)print(m.join('  '),'dim');
+}
+
+/* ================= 启动 ================= */
+async function boot(){
+  renderUI();
+  sfx.boot();
+  const L=[
+    ['NEUROPOD BIOS v9.4.1 — 神经舱自检','dim'],
+    ['  海马体缓存 .............. OK','dim'],
+    ['  多巴胺调节器 ............ OK','dim'],
+    ['  [警告] 情绪模块存在残留噪声','am'],
+    ['','dim'],
+    ['装载 NIGHTSHELL OS v0.1 ............ 完成',''],
+    ['  mount /city ............. 完成','dim'],
+    ['  mount /home ............. 完成','dim'],
+    ['','dim'],
+  ];
+  for(const row of L){await sleep(rnd(90,260));
+    print(row[0]?esc(row[0]):'&nbsp;',row[1]);}
+  await sleep(300);
+  let saved=null;
+  try{saved=JSON.parse(localStorage.getItem(SAVE_KEY)||'null');}catch(e){}
+  if(saved&&saved.name){
+    print('&gt; 检测到既有意识备份:'+esc(saved.name)+' · LV'+(saved.lvl||1)
+      +' · '+(DISTRICTS[saved.dist]?DISTRICTS[saved.dist].name:'未知'));
+    print('&gt; 输入 load 接管它,或输入新代号开始新进程:');
+  }else{
+    print('&gt; 检测到新意识接入。请输入你的 runner 代号:');
+  }
+  MODE='name';renderUI();inp.focus();
+}
+function setName(t){
+  if(t==='load'){
+    if(load())return;
+    print(DIM('请输入新代号,或再试 load。'));return;}
+  const nm=t.slice(0,12).replace(/[<>]/g,'').trim();
+  if(!nm){print(DIM('代号不能为空。'));return;}
+  S=freshState();S.name=nm;
+  MODE='intro';renderUI();save();
+  intro(nm);
+}
+async function intro(nm){
+  print('');
+  print('欢迎接入夜之城,'+MG(nm)+MG('。'));
+  await sleep(400);
+  print('2077。曜氏集团的塔刺进云层,塔尖的红灯是这座城市唯一不灭的星。');
+  await sleep(400);
+  print('你是一个 runner——靠替人偷数据、清进程糊口的自由黑客。今晚,你的神经舱接入了 NIGHTSHELL:整座城在你眼里只是一个文件系统。街区是目录,人是进程,钱是数据包。');
+  await sleep(400);
+  print(MG('传闻塔顶的主机里睡着 root 权限——拿到它的人,不再是用户,而是这座城市的神。'));
+  await sleep(450);
+  print('');
+  print(CY('▸ 新手引导'));
+  print('  1. '+DIM('ls 看看四周 · talk 白鸦 领第一份活'));
+  print('  2. '+DIM('练级攒钱:say 白鸦 交易 购置装备,cd 数据坟场 练级'));
+  print('  3. '+DIM('目标:从零姐处弄到门禁卡,进塔,终结 ROOT/0(建议 LV5)'));
+  print('  4. '+DIM('随时 help 查指令;死了只掉 15% 钱,老针免费治疗,别怕。'));
+  enterDistrict('yeSe');
+  MODE='play';renderUI();
+  inp.focus();
+}
+/* 调试钩子:控制台里 window.__ns() 可查看游戏内部状态 */
+window.__ns=()=>({mode:MODE,name:S.name,lvl:S.lvl,hp:S.hp,maxhp:S.maxhp,
+  credits:S.credits,dist:S.dist,inv:Object.assign({},S.inv),
+  flags:Object.assign({},S.flags),cleared:S.cleared,cleared2:S.cleared2,jobsDone:S.jobsDone,
+  contract:S.contract?{type:S.contract.type,have:S.contract.have,need:S.contract.need,
+    done:S.contract.done,district:S.contract.district,desc:S.contract.desc}:null,
+  combat:COM?{mob:MOBS[COM.key].name,mobHp:COM.m.hp,turn:COM.turn}:null,
+  qte:QTE?{kind:QTE.kind,pos:QTE.pos,idx:QTE.idx,
+    seq:QTE.seq?QTE.seq.map(k=>ARRNAMES[k]):null,
+    remain:Math.max(0,Math.round(QTE.dur-(performance.now()-QTE.t0)))}:null});
+boot();
+</script>
+</body>
+</html>
