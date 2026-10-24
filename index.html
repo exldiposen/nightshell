@@ -984,6 +984,8 @@ const ACHVS=[
  {id:'ferry',name:'摆渡人',desc:'让一万条意识回家(第三章)',test:()=>!!S.cleared3},
  {id:'rival',name:'宿敌之战',desc:'打过一场双人对战(竞技场)',hint:'约个人,来终端外面',
   test:()=>{try{return !!localStorage.getItem('ns_arena_vs');}catch(e){return false;}}},
+ {id:'waves',name:'波次生存者',desc:'竞技场生存模式撑过 10 波',hint:'在竞技场,活得更久一点',
+  test:()=>{try{return (+localStorage.getItem('ns_arena_survival_best')||0)>=10;}catch(e){return false;}}},
 ];
 const ACHV_REWARD={kill50:300,job5:500,job15:1000,job30:2500,rich:1000,lv15:500};
 function checkAchv(silent){
