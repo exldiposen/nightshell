@@ -74,13 +74,14 @@ const LADDER=[
  {name:'ICE-巡逻者',col:'#ffc857',hp:112,speed:1.0,aggr:.78,react:.34,jump:.45,proj:.3,scale:1},
  {name:'零号守卫 ROOT/0',col:'#ff2ec4',hp:150,speed:1.08,aggr:.92,react:.2,jump:.55,proj:.42,scale:1.28,armor:1,boss:1},
 ];
-const ATK={
+const ATKS={
  punch:{startup:.06,active:.10,recover:.16,range:62,dmg:6,kb:170,stun:.30,ly:.5},
  kick:{startup:.15,active:.12,recover:.27,range:84,dmg:11,kb:330,stun:.42,launch:1},
  special:{startup:.22,active:.06,recover:.30,range:0,dmg:0,kb:0,stun:0},
  ult:{startup:.95,active:.08,recover:.42,range:0,dmg:0,kb:0,stun:0},
  throw:{startup:.09,active:.08,recover:.32,range:46,dmg:10,kb:300,stun:.5,throw:1},
  dkick:{startup:.05,active:.34,recover:.14,range:56,dmg:9,kb:290,stun:.45,launch:1,air:1},
+ dragon:{startup:.08,active:.22,recover:.34,range:70,dmg:13,kb:380,stun:.5,launch:1,dragon:1},
 };
 function playerName(){try{const j=JSON.parse(localStorage.getItem('nightshell_save_v1'));return j&&j.name?j.name:'RUNNER';}catch(e){return 'RUNNER';}}
 
@@ -93,7 +94,7 @@ const CHARS=[
   desc:'力量 · 慢,但每拳都疼'},
  {name:'ICE-巡逻者',col:'#ffc857',hp:90,speed:1.12,dmgM:.9,projR:8,projV:780,scale:1,
   desc:'敏捷 · 高速弹幕'},
- {name:'ROOT/0',col:'#ff2ec4',hp:135,speed:.95,dmgM:1.15,projR:12,projV:600,scale:1.18,armor:1,wave:1,
+ {name:'ROOT/0',col:'#ff2ec4',hp:125,speed:.95,dmgM:1.15,projR:12,projV:600,scale:1.18,armor:1,wave:1,
   desc:'霸体 · 必杀放出格式化波'},
 ];
 let selP=0,selE=0,selTurn=1; // 1=P1选择中,2=P2(vs)
@@ -171,10 +172,35 @@ function resetTraining(){
 addEventListener('keydown',e=>{
  const k=e.key.length===1?e.key.toLowerCase():e.key;
  if([' ','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].indexOf(e.key)>=0)e.preventDefault();
- if(!keys[k])press(k);
+ if(!keys[k]){
+  press(k);
+  const mb=mbufFor(k);
+  if(mb)mb.push({k,t:stT});
+ }
  keys[k]=true;
 });
 addEventListener('keyup',e=>{keys[e.key.length===1?e.key.toLowerCase():e.key]=false;});
+/* 搓招:方向缓冲序列检测。↓→+J=数据弹(50⚡) · ↓↓+K=升龙踢(30⚡) */
+const mbufP=[],mbufE=[];
+function mbufFor(k){
+ if(['s','a','d','w','ArrowDown','ArrowUp','ArrowLeft','ArrowRight'].indexOf(k)>=0)return mbufP;
+ return null;
+}
+function motionOf(buf,atkKey,now){
+ const rec=buf.filter(m=>now-m.t<650);
+ if(atkKey==='j'||atkKey==='f'||atkKey===','){
+  const lastDown=rec.map(m=>m.k).lastIndexOf('ArrowDown')>=0
+   ||rec.map(m=>m.k).lastIndexOf('s')>=0;
+  const anyFwd=rec.some(m=>m.k==='ArrowRight'||m.k==='d'||m.k==='ArrowLeft'||m.k==='a');
+  return lastDown&&anyFwd?'wave':null;
+ }
+ if(atkKey==='k'||atkKey==='g'||atkKey==='.'){
+  let downs=0;
+  for(const m of rec){if(m.k==='ArrowDown'||m.k==='s')downs++;}
+  return downs>=2?'dragon':null;
+ }
+ return null;
+}
 function press(k){
  if(state==='title'){
   if(k==='1'||k==='Enter'){mode='ladder';ladderIdx=0;sfx.ui();selTurn=1;state='select';stT=0;}
@@ -206,6 +232,22 @@ function press(k){
  if(state==='pause'){
   if(k==='r'){roundNo=1;wins=[0,0];resetFight();state='round';stT=0;sfx.ui();}
   if(k==='t'){mode='ladder';state='title';stT=0;sfx.ui();}}
+ // 搓招检测(j/k 按下时查方向缓冲)
+ if(state==='fight'){
+  const now=stT;
+  if(mode!=='vs'&&(k==='j'||k==='k')){
+   const m=motionOf(mbufP,k,now);
+   if(m==='wave'&&P.meter>=50&&!P.atk){P.meter-=50;P.wantAtk='special';sfx.ui();}
+   else if(m==='dragon'&&!P.atk){P.wantAtk='dragon';}
+  }
+  if(mode==='vs'){
+   if(k===','||k==='.'){
+    const m=motionOf(mbufE,k,now);
+    if(k===','&&m==='wave'&&E.meter>=50&&!E.atk){E.meter-=50;E.wantAtk='special';sfx.ui();}
+    if(k==='.'&&m==='dragon'&&!E.atk){E.wantAtk='dragon';}
+   }
+  }
+ }
  // 双击方向 = 冲刺
  if(state==='fight'&&P&&!P.atk){
   const now=stT;
@@ -226,7 +268,7 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='f
 /* ============ 战斗逻辑 ============ */
 function applyHit(att,def,spec){
  if(hitstop>0)return;
- const a=ATK[spec],armored=def.brain.armor&&def.atk&&!def.hitstun;
+ const a=ATKS[spec],armored=def.brain.armor&&def.atk&&!def.hitstun;
  const blocking=!a.throw&&def.blockHeld&&def.onG&&!def.atk&&def.hitstun<=0
    &&((def.dir>0&&att.x>def.x)||(def.dir<0&&att.x<def.x));
  if(blocking){
@@ -272,9 +314,9 @@ function updateF(f,foe,dt){
   return;
  }
  if(f.hitstun>0){
-  f.hitstun-=dt;f.vy+=2600*dt;f.x+=f.vx*dt;f.y+=f.vy*dt;f.vx*=(1-4*dt);
+  f.hitstun-=dt;f.vy+=2600*dt;f.x+=f.vx*dt;f.y+=f.vy*dt;f.vx*=(1-2.2*dt);
   if(f.y>=GROUND){f.y=GROUND;f.vy=0;f.onG=true;
-   if(f.state==='hurt'&&(Math.abs(f.vx)>120)){f.state='down';f.downT=.75;f.vx=0;}}
+   if(f.state==='hurt'&&(Math.abs(f.vx)>90)){f.state='down';f.downT=.8;f.inv=1.0;f.vx=0;}}
   f.x=clamp(f.x,50,W-50);return;
  }
  f.blockstun=Math.max(0,f.blockstun-dt);
@@ -299,6 +341,9 @@ function updateF(f,foe,dt){
    if(f.brain.boss&&f.onG){f.atk={type:'ult',t:0};f.hitDone=false;f.state='attack';sfx.special();}
   }else if(f.wantAtk==='dkick'){
    if(!f.onG){f.atk={type:'dkick',t:0};f.hitDone=false;f.state='attack';sfx.whoosh();}
+  }else if(f.wantAtk==='dragon'){
+   if(f.onG&&f.meter>=30){f.meter-=30;f.atk={type:'dragon',t:0};f.hitDone=false;
+    f.state='attack';f.vy=-750;f.onG=false;sfx.special();}
   }else if(f.wantAtk==='throw'){
    if(f.onG){f.atk={type:'throw',t:0};f.hitDone=false;f.state='attack';sfx.whoosh();}
   }else{
@@ -309,7 +354,7 @@ function updateF(f,foe,dt){
  f.wantAtk=null;
  // 攻击阶段
  if(f.atk){
-  const a=ATK[f.atk.type];f.atk.t+=dt;
+  const a=ATKS[f.atk.type];f.atk.t+=dt;
   if(f.atk.t>=a.startup+a.active+a.recover){f.atk=null;f.state='idle';}
   else if(f.atk.t>=a.startup&&!f.hitDone&&f.atk.t<a.startup+a.active){
    if(f.atk.type==='special'){
@@ -325,15 +370,21 @@ function updateF(f,foe,dt){
       col:'#ff2ec4',r:24,wave:1});
     shakeT=.3;shake=9;
    }else{
-    // 判定盒(水平区间 + 纵向活动带)
-    const x1=f.x+f.dir*14,x2=f.x+f.dir*(14+a.range);
+    // 判定盒:按招式划纵向带,与受击者躯干做区间重叠(地面/空中分离,体型一致)
+    const fs=f.scale||1,es=foe.scale||1;
+    const x1=f.x+f.dir*14*fs,x2=f.x+f.dir*(14+a.range*fs);
     const lo=Math.min(x1,x2),hi=Math.max(x1,x2);
-    const dlo=foe.x-30*foe.scale,dhi=foe.x+30*foe.scale;
-    const inRange=hi>=dlo&&lo<=dhi&&Math.abs(foe.y-f.y)<150*Math.max(f.scale,foe.scale)
-      &&foe.state!=='ko'&&foe.inv<=0;
+    const dlo=foe.x-28*es,dhi=foe.x+28*es;
+    let atkTop,atkBot;
+    if(a.air){atkTop=f.y-64;atkBot=f.y+26;}
+    else if(a.dragon){atkTop=f.y-150*fs;atkBot=f.y;}
+    else if(f.onG){atkTop=f.y-112*fs;atkBot=f.y-16;}
+    else{atkTop=f.y-90;atkBot=f.y+30;}
+    const bodyTop=foe.y-112*es,bodyBot=foe.y-2;
+    const inRange=hi>=dlo&&lo<=dhi&&atkTop<=bodyBot&&atkBot>=bodyTop
+      &&foe.state!=='ko'&&foe.state!=='down'&&foe.inv<=0;
     if(a.throw){
-     // 投技:近身才抓得住;抓不到硬直巨大(被攻击/浮空/倒地目标抓取落空)
-     if(inRange&&foe.onG&&foe.hitstun<=0&&foe.state!=='down'){
+     if(inRange&&foe.onG&&foe.hitstun<=0){
       f.hitDone=true;applyHit(f,foe,'throw');
      }else if(f.atk.t>=a.startup+a.active){f.hitDone=true;}
     }else if(inRange){
@@ -422,7 +473,7 @@ function tick(rdt){
     E.blockHeld=!!keys['ArrowDown']&&E.onG;
     if(keys['ArrowUp'])E.wantJump=true;
     if(keys[',']||keys['1'])E.wantAtk=E.wantAtk||'punch';
-    if(keys['.']||keys['2'])E.wantAtk=E.onG?'kick':'dkick';
+    if(keys['.']||keys['2'])E.wantAtk=E.wantAtk||(E.onG?'kick':'dkick');
     if(keys['/']||keys['3'])E.wantAtk='special';
     if(keys['m'])E.wantAtk='throw';
    }else{
@@ -430,7 +481,7 @@ function tick(rdt){
     P.blockHeld=(keys['ArrowDown']||keys['s'])&&P.onG;
     if((keys['ArrowUp']||keys['w']||keys[' ']))P.wantJump=true;
     if(keys['j'])P.wantAtk=P.wantAtk||'punch';
-    if(keys['k'])P.wantAtk=P.onG?'kick':'dkick';
+    if(keys['k'])P.wantAtk=P.wantAtk||(P.onG?'kick':'dkick');
     if(keys['l'])P.wantAtk='special';
     if(keys['u']||keys['i'])P.wantAtk='throw';
     if(mode==='train'){
@@ -451,8 +502,8 @@ function tick(rdt){
     const foe=q.own===P?E:P;
     const hitFoe=q.wave
       ?(Math.abs(q.x-foe.x)<40*foe.scale&&foe.y>GROUND-78)
-      :(Math.abs(q.x-foe.x)<34*foe.scale&&foe.y-120*foe.scale<q.y&&foe.y>q.y-40);
-    if(hitFoe&&foe.state!=='ko'&&foe.inv<=0){
+      :(Math.abs(q.x-foe.x)<32*foe.scale&&Math.abs((foe.y-70*foe.scale)-q.y)<72);
+    if(hitFoe&&foe.state!=='ko'&&foe.state!=='down'&&foe.inv<=0){
      PROJ.splice(i,1);
      const blocking=foe.blockHeld&&foe.onG&&!foe.atk&&foe.hitstun<=0;
      if(blocking){foe.hp-=(q.wave?3:2);foe.blockstun=.2;foe.vx=q.dir*200;sfx.block();}
@@ -578,7 +629,7 @@ function render(t){
  // 角色
  if(P&&E){drawF(E,t);drawF(P,t);
   // ROOT/0 超必杀蓄力预警
-  if(E.atk&&E.atk.type==='ult'&&E.atk.t<ATK.ult.startup){
+  if(E.atk&&E.atk.type==='ult'&&E.atk.t<ATKS.ult.startup){
    cx.save();cx.globalAlpha=.10+.14*Math.abs(Math.sin(t/60));
    cx.fillStyle='#ff2ec4';cx.fillRect(0,0,W,H);cx.restore();
    spark(E.x,E.y-90,'#ff2ec4',2);
@@ -633,7 +684,7 @@ function drawF(f,t){
   cx.rotate(-Math.PI/2*.9);
  }
  else if(f.state==='attack'&&f.atk){
-  const a=ATK[f.atk.type],tt=f.atk.t;
+  const a=ATKS[f.atk.type],tt=f.atk.t;
   if(f.atk.type==='punch'){
    const p2=tt<a.startup?tt/a.startup*.3:(tt<a.startup+a.active?1:1-(tt-a.startup-a.active)/a.recover);
    armF={x:lerp(24,64,p2),y:-96,el:[lerp(14,40,p2),-94]};lean=.12*p2;
@@ -650,7 +701,7 @@ function drawF(f,t){
    armF={x:16,y:-106,el:[8,-114]};armB={x:-24,y:-96,el:[-32,-104]};lean=.35;
   }else{ // special 蓄力
    armF={x:34,y:-92,el:[24,-90]};armB={x:26,y:-88,el:[18,-86]};lean=.1;
-   if(tt<ATK.special.startup){spark(f.x+f.dir*(30+Math.random()*20),f.y-84+Math.random()*30-15,f.col,1);}
+   if(tt<ATKS.special.startup){spark(f.x+f.dir*(30+Math.random()*20),f.y-84+Math.random()*30-15,f.col,1);}
   }
  }
  cx.rotate(lean);
@@ -860,6 +911,7 @@ window.__arCheat={hurtE:n=>{if(E)E.hp=Math.max(0,E.hp-n);},
  healP:()=>{if(P){P.hp=P.maxhp;}},
  god:on=>{GOD=!!on;},
  winRound:()=>{if(E)E.hp=0;},
+ downE:()=>{if(E){E.state='down';E.downT=.9;E.vy=-300;E.vx=(E.x>P.x?-1:1)*260;}},
  fightBoss:()=>{mode='ladder';ladderIdx=LADDER.length-1;wins=[0,0];roundNo=1;
    resetFight();state='round';stT=0;}};
 </script>

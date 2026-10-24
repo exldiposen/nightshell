@@ -62,6 +62,16 @@ body.glitch #app{animation:gl .13s steps(2) 2}
 #ps1{color:var(--cyan);text-shadow:0 0 8px rgba(0,240,255,.6);white-space:nowrap}
 #ps1.combat{color:var(--red);text-shadow:0 0 8px rgba(255,71,87,.7)}
 #inp{flex:1;background:transparent;border:none;outline:none;color:var(--fg);font:inherit;caret-color:var(--mag)}
+#btnbar{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;padding:8px 0}
+#btnbar .bg{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+#btnbar .lb{font-size:11px;color:var(--dim);letter-spacing:.2em;margin-right:2px}
+#btnbar button{background:rgba(0,240,255,.06);border:1px solid rgba(0,240,255,.3);
+  color:var(--cyan);font:12px/1.4 inherit;padding:5px 10px;cursor:pointer;border-radius:3px;
+  text-shadow:0 0 6px rgba(0,240,255,.4)}
+#btnbar button:hover{background:rgba(0,240,255,.16);box-shadow:0 0 8px rgba(0,240,255,.3)}
+#btnbar button.warn{border-color:rgba(255,71,87,.5);color:var(--red);text-shadow:0 0 6px rgba(255,71,87,.4)}
+#btnbar button.warn:hover{background:rgba(255,71,87,.14)}
+#btnbar button.amber{border-color:rgba(255,200,87,.45);color:var(--amb)}
 #statusbar{position:fixed;left:0;right:0;bottom:0;z-index:30;
   display:flex;flex-wrap:wrap;gap:8px 22px;align-items:center;
   padding:10px 20px;font-size:13px;
@@ -97,6 +107,7 @@ hr.sep{border:none;border-top:1px dashed rgba(0,240,255,.18);margin:10px 0}
 <div id="app">
   <div id="out"></div>
   <div id="promptrow"><span id="ps1"></span><input id="inp" autocomplete="off" spellcheck="false"></div>
+<div id="btnbar"></div>
 </div>
 <div id="statusbar">
   <span>♥ <span id="hpTxt"></span><span class="bar" id="hpBar"><i></i></span></span>
@@ -334,6 +345,7 @@ function renderUI(){
   ps1.textContent=(MODE==='combat'?'⚔ '+S.name+'|'+DISTRICTS[S.dist].name+'> '
     :S.name+'@'+DISTRICTS[S.dist].name+':~$ ');
   ps1.classList.toggle('combat',MODE==='combat');
+  renderBtns();
 }
 
 /* ================= 存档 ================= */
@@ -1315,16 +1327,51 @@ function handle(v){
   if(MODE==='combat'){combatCmd(t);return;}
   if(MODE==='play'){playCmd(t);return;}
 }
+function exec(v){
+  if(v.trim()){hist.push(v);hi=hist.length;}
+  echo(v);
+  if(MODE!=='boot')sfx.blip();
+  handle(v);
+  inp.value='';
+}
+function btn(label,cmd,cls){
+  const b=document.createElement('button');
+  b.textContent=label;if(cls)b.className=cls;
+  b.addEventListener('click',()=>{exec(cmd);inp.focus();});
+  return b;}
+function renderBtns(){
+  const bar=$('btnbar');bar.innerHTML='';
+  if(MODE==='name'){const g=document.createElement('span');g.className='bg';
+    g.appendChild(btn('载入存档','load','amber'));bar.appendChild(g);return;}
+  if(MODE!=='play')return;
+  const D=DISTRICTS[S.dist];
+  const mk=(lb,items)=>{const g=document.createElement('span');g.className='bg';
+    const t=document.createElement('span');t.className='lb';t.textContent=lb;
+    g.appendChild(t);items.forEach(x=>g.appendChild(x));bar.appendChild(g);};
+  // 导航
+  const nav=exitsOf(S.dist).map(e=>btn(DISTRICTS[e].name,'cd '+DISTRICTS[e].name));
+  nav.unshift(btn('全图','map'));mk('▸ 移动',nav);
+  // 人物
+  if(D.npcs.length)mk('▸ 对话',D.npcs.map(id=>btn(NPCS[id].name,'talk '+NPCS[id].name)));
+  // 敌对进程
+  const mobs=Object.keys(MOB).map(k=>btn('⚔ '+MOBS[k].name,'kill '+MOBS[k].name,'warn'));
+  if(mobs.length)mk('▸ 目标',mobs.concat([btn('列表','ps')]));
+  // 战斗常用(战斗中)
+  if(COM){mk('▸ 战斗',[btn('时机打击','attack'),btn('连招','combo'),
+    btn('超频','hack'),btn('逃跑','flee')]);}
+  // 消耗品
+  const uses=['pill','electro','dew'].filter(k=>S.inv[k]>0);
+  if(uses.length)mk('▸ 使用',uses.map(k=>btn(ITEMS[k].name,'use '+ITEMS[k].name,'amber')));
+  // 系统
+  mk('▸ 系统',[btn('任务','quest'),btn('契约','bbs'),btn('成就','achv'),btn('背包','inv'),
+    btn('档案','stats'),btn('商店','say 白鸦 交易'),btn('竞技场','arena'),
+    btn('存档','save'),btn('帮助','help')]);
+}
 inp.addEventListener('keydown',e=>{
   if(e.isComposing)return;
   if(MODE==='qte'){qteKey(e);return;}
-  if(e.key==='Enter'){
-    const v=inp.value;inp.value='';
-    if(v.trim()){hist.push(v);hi=hist.length;}
-    echo(v);
-    if(MODE!=='boot')sfx.blip();
-    handle(v);
-  }else if(e.key==='ArrowUp'){e.preventDefault();
+  if(e.key==='Enter'){exec(inp.value);}
+  else if(e.key==='ArrowUp'){e.preventDefault();
     if(hi>0){hi--;inp.value=hist[hi]||'';}}
   else if(e.key==='ArrowDown'){e.preventDefault();
     if(hi<hist.length-1){hi++;inp.value=hist[hi];}
