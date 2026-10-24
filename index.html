@@ -88,6 +88,7 @@ body.glitch #app{animation:gl .13s steps(2) 2}
   background:radial-gradient(circle,rgba(57,255,136,.18),transparent 70%)}
 .flash.on{animation:fl .5s ease-out}
 @keyframes fl{0%{opacity:1}100%{opacity:0}}
+#fxc{position:fixed;inset:0;z-index:60;pointer-events:none;display:none}
 hr.sep{border:none;border-top:1px dashed rgba(0,240,255,.18);margin:10px 0}
 ::selection{background:rgba(255,46,196,.4)}
 ::-webkit-scrollbar{width:9px}
@@ -117,6 +118,7 @@ hr.sep{border:none;border-top:1px dashed rgba(0,240,255,.18);margin:10px 0}
   <span class="cy" id="locTxt"></span>
   <span class="dim" id="killTxt"></span>
 </div>
+<canvas id="fxc"></canvas>
 <div class="scanlines"></div><div class="sweep"></div><div class="vignette"></div>
 <div class="flash" id="flash"></div>
 <script>
@@ -384,6 +386,44 @@ function respawn(){
   const n=rnd(2,3);
   for(let i=0;i<n&&D.spawns.length;i++){const k=pick(D.spawns);MOB[k]=mk(k);}
 }
+/* 场景切换:信号跳接式故障转场 + 街区名牌 */
+const fxc=document.getElementById('fxc'),fx=fxc.getContext('2d');
+function sizeFx(){fxc.width=innerWidth;fxc.height=innerHeight;}
+addEventListener('resize',sizeFx);
+const THREAT_COL={'绿':'#39ff88','黄':'#ffc857','红':'#ff4757','黑':'#ff2ec4','█':'#00f0ff'};
+function sceneFx(title,color){
+  fxc.width=innerWidth;fxc.height=innerHeight;
+  fxc.style.display='block';
+  const t0=performance.now(),DUR=900;
+  const hardClose=setTimeout(()=>{fxc.style.display='none';fx.clearRect(0,0,fxc.width,fxc.height);clearInterval(iv);},DUR+300);
+  const iv=setInterval(function fr(){
+    const p=(performance.now()-t0)/DUR;
+    const w=fxc.width,h=fxc.height;
+    fx.clearRect(0,0,w,h);
+    if(p>=1){fxc.style.display='none';clearInterval(iv);return;}
+    const a=p<.45?1:(1-p)/.55;
+    for(let i=0;i<16;i++){
+      const y=Math.random()*h,bh=2+Math.random()*24;
+      fx.fillStyle='rgba('+(chance(.5)?'0,240,255':'255,46,196')+','+((.04+Math.random()*.12)*a)+')';
+      fx.fillRect(0,y,w,bh);
+    }
+    fx.fillStyle='rgba(255,255,255,'+(.09*a)+')';
+    for(let i=0;i<4;i++)fx.fillRect(0,Math.random()*h,w,1);
+    fx.fillStyle='rgba(3,4,10,'+(.6*(1-p))+')';
+    fx.fillRect(0,0,w,h);
+    fx.save();
+    fx.globalAlpha=Math.max(0,Math.min(1,(1.4-p)*1.6))*.96;
+    const fs=Math.round(Math.min(58,w/11));
+    fx.font='bold '+fs+'px Consolas,"Microsoft YaHei"';
+    fx.textAlign='center';fx.textBaseline='middle';
+    fx.fillStyle=color;fx.shadowColor=color;fx.shadowBlur=34;
+    fx.fillText(title,w/2+(chance(.25)?rnd(-5,5):0),h/2+Math.max(0,(.3-p))*160);
+    fx.font=Math.round(fs*.4)+'px Consolas,"Microsoft YaHei"';
+    fx.globalAlpha*=.8;
+    fx.fillText('· 信号跳接完成 ·',w/2,h/2+fs*.9);
+    fx.restore();
+  },16);
+}
 function enterDistrict(id,silent){
   S.last=S.dist;S.dist=id;
   if(!S.flags.seen)S.flags.seen={};
@@ -391,6 +431,7 @@ function enterDistrict(id,silent){
   respawn();
   const D=DISTRICTS[id];
   glitch();
+  sceneFx(D.name,THREAT_COL[D.threat]||'#00f0ff');
   if(!silent){
     print('▓▓▓ '+esc(D.name)+' ▓▓▓  '+DIM('[威胁等级:'+D.threat+']'),'dist');
     p(D.desc);
