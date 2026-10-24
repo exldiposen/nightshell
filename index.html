@@ -505,7 +505,8 @@ const ARRNAMES={ArrowUp:'↑',ArrowDown:'↓',ArrowLeft:'←',ArrowRight:'→'};
 function qteDiv(){const d=document.createElement('div');d.className='ln';out.appendChild(d);
   window.scrollTo(0,document.body.scrollHeight);return d;}
 function endQTE(){if(qteTimer)clearInterval(qteTimer);qteTimer=0;
-  if(QTE&&QTE.div)QTE.div.remove();QTE=null;if(MODE==='qte')MODE='combat';renderUI();}
+  if(QTE&&QTE.div){QTE.div.classList.add('dim');} // 定格保留在滚动记录里
+  QTE=null;if(MODE==='qte')MODE='combat';renderUI();}
 function qteLoop(){
   if(!QTE)return;
   const el=performance.now()-QTE.t0;
@@ -517,10 +518,10 @@ function qteLoop(){
   }
   if(QTE.kind==='atk'){
     const p=el/QTE.dur,trip=p<.5?p*2:(1-p)*2;
-    QTE.pos=Math.round(trip*19);
-    let s='  ⏱ [';
-    for(let i=0;i<20;i++)s+=(i===QTE.pos)?'█':((i===9||i===10)?'│':'·');
-    QTE.div.textContent=s+']';
+    QTE.pos=Math.round(trip*23);
+    let s='  ⏱ 攻击 [';
+    for(let i=0;i<24;i++)s+=(i===QTE.pos)?'█':((i===11||i===12)?'│':'·');
+    QTE.div.textContent=s+']  ← 撞到 ││ 按 Enter';
   }else if(QTE.kind==='blk'){
     const rem=1-el/QTE.dur,n=Math.max(1,Math.ceil(rem*18));
     QTE.div.textContent='  🛡 格挡窗口 '+'█'.repeat(n)+'░'.repeat(18-n);
@@ -545,18 +546,19 @@ function qteKey(e){
 }
 function qteAttack(){
   if(S.flags.auto){resolveAttack(1,'');return;}
-  print(DIM('⏱ 时机打击:光标摆到中央 ││ 的瞬间按 [Enter]'));
+  print(DIM('⏱ 时机打击:光标扫到中央 ││ 的瞬间按 [Enter] 或点「⚡ 就现在打!」按钮'));
+  QTE={kind:'atk',t0:performance.now(),dur:1900,pos:0,div:qteDiv()};
   MODE='qte';renderUI();
-  QTE={kind:'atk',t0:performance.now(),dur:1400,pos:0,div:qteDiv()};
   qteTimer=setInterval(qteLoop,50);
 }
 function strikeQTE(timeout){
-  const pos=(QTE&&QTE.pos)||0,d=Math.abs(pos-9.5);
+  const pos=(QTE&&QTE.pos)||0,d=Math.abs(pos-11.5);
   let mult,tag;
-  if(!timeout&&d<=1.5){mult=2;tag=MG(' ☠ 完美破防!');sfx.crit();S.cntPerfect=(S.cntPerfect||0)+1;}
-  else if(!timeout&&d<=4){mult=1.4;tag=GR(' 命中要害');}
-  else if(!timeout&&d<=7){mult=.9;tag='';}
-  else{mult=.5;tag=RD(' 落空');}
+  if(!timeout&&d<=2.2){mult=2;tag=MG(' ☠ 完美破防!');sfx.crit();S.cntPerfect=(S.cntPerfect||0)+1;S.flags._miss=0;}
+  else if(!timeout&&d<=4.6){mult=1.4;tag=GR(' ✔ 命中要害');S.flags._miss=0;}
+  else if(!timeout&&d<=7.5){mult=.9;tag='';S.flags._miss=0;}
+  else{mult=.55;tag=RD(' ⚠ 时机偏差,仅擦伤');S.flags._miss=(S.flags._miss||0)+1;
+    if(S.flags._miss>=2)print(DIM('提示:输入 auto on 可切换自动判定(不再需要时机)。'));}
   endQTE();
   resolveAttack(mult,tag);
 }
@@ -571,9 +573,10 @@ function startCombo(){
   if(S.ram<15){print(RD('电量不足(需 15⚡)。'));return;}
   S.ram-=15;renderUI();
   const seq=Array.from({length:4},()=>pick(ARROWS));
-  print(CY('⌨ 连招输入:4 秒内依次按方向键 → ')+seq.map(k=>ARRNAMES[k]).join(' '));
-  MODE='qte';renderUI();
+  print(CY('⌨ 连招输入:4 秒内依次按方向键 → ')+seq.map(k=>ARRNAMES[k]).join(' ')
+    +(S.flags.auto?'':'(或点下方方向按钮)'));
   QTE={kind:'cmb',t0:performance.now(),dur:4000,seq,idx:0,div:qteDiv()};
+  MODE='qte';renderUI();
   qteTimer=setInterval(qteLoop,50);
 }
 function resolveCombo(ok){
@@ -584,7 +587,11 @@ function resolveCombo(ok){
   if(COM.m.hp<=0)return victory();
   mobTurn();
 }
-function resolveBlock(ok){const sp=QTE.special;endQTE();applyMobHit(sp,ok);}
+function resolveBlock(ok){const sp=QTE.special;endQTE();
+  if(ok)S.flags._miss=0;
+  else{S.flags._miss=(S.flags._miss||0)+1;
+    if(S.flags._miss>=2)print(DIM('提示:输入 auto on 可切换自动判定(敌人攻击时自动格挡)。'));}
+  applyMobHit(sp,ok);}
 
 /* ================= 战斗 ================= */
 function startCombat(k){
@@ -596,7 +603,7 @@ function startCombat(k){
   if(t.boss&&k==='root0'){print(RD('「ROOT/0:又一只虫子。三十年了,你们的勇气总是大于你们的带宽。」'));glitch();}
   if(t.boss&&k==='dawn1'){print(MG('「DAWN/1:欢迎,root。三十年了,终于有人来替我把灯打开。」'));glitch();}
   if(t.boss&&k==='disconn'){print(RD('「大断线·回响:你……听得见我们?三十年来,你是第一个听得见的。」'));glitch();}
-  print(DIM('指令:attack 时机打击 · combo 连招(15⚡) · hack 超频(25⚡) · use <物品> · flee 逃跑 · 敌击时按 [Enter] 格挡'));
+  print(DIM('指令:attack 时机打击 · combo 连招(15⚡) · hack 超频(25⚡) · use <物品> · flee 逃跑 · 敌击时按 [Enter] 或点「🛡 格挡」按钮'));
   renderUI();
 }
 function playerHit(mult,tag,noCrit){
@@ -615,9 +622,9 @@ function mobTurn(){
   const lbl=COM.key==='dawn1'?'日出':(COM.key==='disconn'?'静默':'格式化');
   const special=t.boss&&COM.turn%cyc===0;
   if(S.flags.auto){applyMobHit(special,false);return;}
-  print(RD('⚠ '+esc(t.name)+(special?(' 蓄力「'+lbl+'」'):' 挥出一击')+' —— 按 [Enter] 格挡!'));
+  print(RD('⚠ '+esc(t.name)+(special?(' 蓄力「'+lbl+'」'):' 挥出一击')+' —— 按 [Enter] 或点「🛡 格挡」按钮!'));
+  QTE={kind:'blk',t0:performance.now(),dur:special?(COM.key==='disconn'?2400:1650):2100,special,div:qteDiv()};
   MODE='qte';renderUI();
-  QTE={kind:'blk',t0:performance.now(),dur:special?(COM.key==='disconn'?2000:1300):1700,special,div:qteDiv()};
   qteTimer=setInterval(qteLoop,50);
 }
 function applyMobHit(special,blocked){
@@ -722,8 +729,27 @@ function victory(){
   if(myKey==='dawn1')ending2();
   if(myKey==='disconn')ending3();
 }
+function lev1(a,b){
+  if(Math.abs(a.length-b.length)>2)return 9;
+  const d=[],n=a.length,m2=b.length;
+  for(let i=0;i<=n;i++)d[i]=[i];for(let j=0;j<=m2;j++)d[0][j]=j;
+  for(let i=1;i<=n;i++)for(let j=1;j<=m2;j++)
+    d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));
+  return d[n][m2];
+}
+const COMBAT_WORDS=['attack','hack','combo','use','flee','auto','scan','sound','stats','inv','quest','help','save','load'];
 function combatCmd(t){
-  const c=t.split(/\s+/)[0].toLowerCase(),rest=t.slice(c.length).trim();
+  let c=t.split(/\s+/)[0].toLowerCase(),rest=t.slice(c.length).trim();
+  if(COMBAT_WORDS.indexOf(c)<0&&c.length>=2){
+    let best=null,bestD=9;
+    for(const w of COMBAT_WORDS){
+      const dd=c.length>=3?lev1(c,w):9;
+      const sw=w.indexOf(c)===0?1:9;
+      const sc=Math.min(dd,sw);
+      if(sc<bestD){bestD=sc;best=w;}
+    }
+    if(best&&bestD<=2){print(DIM('(指令已自动理解为 '+best+')'));c=best;}
+  }
   const m=COM.m;
   if(c==='attack'||c==='a'||c==='kill'){
     qteAttack();
@@ -1378,12 +1404,38 @@ function exec(v){
 function btn(label,cmd,cls){
   const b=document.createElement('button');
   b.textContent=label;if(cls)b.className=cls;
-  b.addEventListener('click',()=>{exec(cmd);inp.focus();});
+  b.addEventListener('click',()=>{
+    if(cmd==='qteStrike'){if(QTE&&QTE.kind==='atk')strikeQTE(false);return;}
+    if(cmd==='qteBlock'){if(QTE&&QTE.kind==='blk')resolveBlock(true);return;}
+    if(cmd.indexOf('qteArrow:')===0){
+      const m={'↑':'ArrowUp','↓':'ArrowDown','←':'ArrowLeft','→':'ArrowRight'}[cmd.slice(9)];
+      qteKey({key:m,preventDefault(){}});
+      return;}
+    exec(cmd);inp.focus();
+  });
   return b;}
 function renderBtns(){
   const bar=$('btnbar');bar.innerHTML='';
   if(MODE==='name'){const g=document.createElement('span');g.className='bg';
     g.appendChild(btn('载入存档','load','amber'));bar.appendChild(g);return;}
+  if(MODE==='qte'&&QTE){
+    const g=document.createElement('span');g.className='bg';
+    const t=document.createElement('span');t.className='lb';t.textContent='▸ 反应';
+    g.appendChild(t);
+    if(QTE.kind==='atk')g.appendChild(btn('⚡ 就现在打!','qteStrike','warn'));
+    else if(QTE.kind==='blk')g.appendChild(btn('🛡 格挡!','qteBlock','warn'));
+    else if(QTE.kind==='cmb')['↑','←','↓','→'].forEach(a=>g.appendChild(btn(a,'qteArrow:'+a,'warn')));
+    bar.appendChild(g);return;}
+  if(MODE==='combat'&&COM){
+    const mk=(lb,items)=>{const g=document.createElement('span');g.className='bg';
+      const t=document.createElement('span');t.className='lb';t.textContent=lb;
+      g.appendChild(t);items.forEach(x=>g.appendChild(x));bar.appendChild(g);};
+    mk('▸ 战斗',[btn('⚡ 时机打击','attack','warn'),btn('连招','combo'),
+      btn('超频','hack'),btn('🛡 逃跑','flee')]);
+    const uses=['pill','electro','dew'].filter(k=>S.inv[k]>0);
+    if(uses.length)mk('▸ 使用',uses.map(k=>btn(ITEMS[k].name,'use '+ITEMS[k].name,'amber')));
+    mk('▸ 系统',[btn('任务','quest'),btn('存档','save'),btn('帮助','help')]);
+    return;}
   if(MODE!=='play')return;
   const D=DISTRICTS[S.dist];
   const mk=(lb,items)=>{const g=document.createElement('span');g.className='bg';
